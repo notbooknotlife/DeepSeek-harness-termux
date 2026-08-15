@@ -112,15 +112,25 @@ configure_npm(){
 
 #------------------------------ 安装前置：工具链 ------------------------------
 ensure_tools(){
-  local pkgs="git curl cmake clang make python binutils pkg-config libandroid-spawn termux-tools nodejs"
+  # 命令型工具：用 command -v 判断，缺哪个装哪个
+  local tool_pkgs="git curl cmake clang make python binutils pkg-config termux-tools"
+  # 库/头文件型依赖(非命令)：用 dpkg -s 判断是否已安装，缺则补装（koffi编译需 spawn.h 等）
+  local lib_pkgs="libandroid-spawn libandroid-support libandroid-glob"
   if [ "$SKIP_UPGRADE" -ne 1 ]; then
     info "pkg update && pkg upgrade ..."
     pkg update -y >>"$LOG_FILE" 2>&1 || warn "pkg update 失败(可忽略)"
     pkg upgrade -y >>"$LOG_FILE" 2>&1 || warn "pkg upgrade 失败"
   fi
+  # 命令型
   local need=""
-  for p in git curl cmake clang make python3 binutils pkg-config; do have "$p" || need="$need $p"; done
-  if [ -n "$need" ]; then info "安装缺失工具:$need"; pkg install -y $need >>"$LOG_FILE" 2>&1 || err "pkg install 失败"; fi
+  for p in $tool_pkgs; do have "$p" || need="$need $p"; done
+  # 库型：用 dpkg 判断
+  local lib_need=""
+  for p in $lib_pkgs; do dpkg -s "$p" >/dev/null 2>&1 || lib_need="$lib_need $p"; done
+  if [ -n "$need$lib_need" ]; then
+    info "安装缺失依赖:$need $lib_need"
+    pkg install -y $need $lib_need >>"$LOG_FILE" 2>&1 || err "pkg install 失败"
+  fi
   have nodejs || pkg install -y nodejs >>"$LOG_FILE" 2>&1 || warn "nodejs 安装失败"
 }
 
