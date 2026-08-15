@@ -92,6 +92,25 @@ dsh web
 
 ---
 
+## 安装后生成的文件/文件夹说明
+
+`install` 默认会把工作区、手机端适配、DSH 控制菜单**收到 Termux 内部固定目录**，
+方便统一管理/删除，且不污染手机存储。它们分别是什么、为什么生成：
+
+| 路径 | 内容 | 为什么生成 |
+|------|------|-----------|
+| **`~/.dsh/workspace`** | DSH 的工作区根（fs-sandbox 默认目录） | DSH Web UI 读写文件都在这里，便于删除、不散到手机存储。可用 `DSH_WORKSPACE` 覆盖。 |
+| **`~/.dsh/profiles/web/cordis.patch.yml`** | DSH 设置面板的 patch 配置（cwd 指向 workspace） | DSH 启动必需的 profile 配置。 |
+| **`~/.dsh-mobile/`** | 手机端 UI 适配资源 | 手机浏览器注入用：`mobile.css`(样式)、`dsh-mobile.user.js`(Tampermonkey)、`bookmarklet.txt`(书签)。**一键安装会从 GitHub 自动下载**，无需 clone。 |
+| **`~/.dsh/dshmenu.sh`** | DSH 交互控制菜单脚本 | 让 `dsh`(无参数) 弹出：启动 / 自定义端口 / 局域网 / 状态 / 卸载 的菜单。 |
+| **`~/.dsh/dshrc.sh`** | shell 集成片段（定义 `dsh` 函数） | 让 `dsh` 无参数弹菜单、带参数走原生。由 install 自动 source 进 `~/.bashrc`。 |
+| **`~/.bashrc` 追加的一行** | `source ~/.dsh/dshrc.sh` | 每次开 Termux 自动启用 dsh 控制菜单。幂等，不会重复添加。 |
+| **`~/.npmrc`** | npm 配置(registry/镜像/超时) | 安装 DSH 时的网络配置，安装前会先备份为 `.npmrc.dsh.bak`，卸载可还原。 |
+
+> **为什么放在 `~/.dsh` / `~/.dsh-mobile` 而不是手机存储**：① 删除方便（`rm -rf`）；② 与 DSH 本体一致，数据不散溢；③ 卸载脚本能统一清理。
+
+---
+
 ## 手机端 UI 适配
 
 DSH 的 Web UI 默认仅绑 `127.0.0.1`；`serve --host 0.0.0.0` 放开供手机/局域网访问，
