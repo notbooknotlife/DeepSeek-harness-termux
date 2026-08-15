@@ -10,6 +10,18 @@
 // @grant        none
 // ==/UserScript==
 
+// ============================================================
+// 适用版本：DeepSeek Harness  0.1.0-rc.6
+// （已实测可用的 DSH 版本）
+//
+// 重要提示：本脚本内写死了当前该 DSH 版本编译出的「随机哈希
+// CSS Modules 前缀」——输入行 .uV2eYG_、模型菜单 ._7KE1Ra_、
+// 设置面板 .VOzbGW_、统计行 .FJxK0a_，以及三个设置项
+// ._5QVD0a_(Agent预设) / .oY77xG_(权限) / .T1PP_q_(繁忙时Enter键)。
+// 这些前缀在 DSH「升级 / 重新打包」后一定会变化，届时脚本会
+// 局部失效，需要重新核对一次这些前缀后更新本文件。
+// ============================================================
+
 (function () {
   'use strict';
 
@@ -73,6 +85,30 @@
 .VOzbGW_panel [class$="_row"] { flex-wrap: wrap !important; align-items: flex-start !important; gap: 6px !important; }
 .VOzbGW_panel [class$="_rowText"] { flex: 1 1 0px !important; min-width: 0 !important; padding-right: 0 !important; display: block !important; }
 .VOzbGW_panel [class$="_title"], .VOzbGW_panel [class$="_desc"] { font-size: clamp(12.5px, 2.4vw, 16px) !important; line-height: 1.4 !important; writing-mode: horizontal-tb !important; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; max-width: 100% !important; }
+
+/* ---- 仅限定三个设置项(Agent预设/权限/繁忙时Enter键)改为上下布局，不误伤其他 ---- */
+.VOzbGW_panel ._5QVD0a_row,
+.VOzbGW_panel .oY77xG_row,
+.VOzbGW_panel .T1PP_q_row {
+  flex-direction: column !important;   /* 改纵向：文字在上、下拉框在下 */
+  align-items: stretch !important;
+  gap: 6px !important;
+}
+.VOzbGW_panel ._5QVD0a_rowText,
+.VOzbGW_panel .oY77xG_rowText,
+.VOzbGW_panel .T1PP_q_rowText {
+  padding-right: 0 !important;         /* 释放之前给下拉框留的48px */
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.VOzbGW_panel ._5QVD0a_selector,
+.VOzbGW_panel .oY77xG_selector,
+.VOzbGW_panel .T1PP_q_selector {
+  width: 100% !important;              /* 下拉框撑满整行 */
+  max-width: none !important;
+  align-self: stretch !important;
+  justify-content: space-between !important;
+}
 `;
 
   var STYLE_ID = 'dsh-mobile-partition-fix';
