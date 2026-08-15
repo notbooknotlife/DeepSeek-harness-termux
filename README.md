@@ -18,8 +18,9 @@ Landlock/bubblewrap、原生模块需现场编译）无法直接 `npm install -g
 # ① 刷新并升级 Termux 软件源（确保环境索引正常，网络慢也可先只 update）
 pkg update -y && pkg upgrade -y
 
-# ② 授权访问手机存储（第一次会弹系统授权框，点"允许"）
-termux-setup-storage
+# ② 可选：授权访问手机存储（默认工作区在 Termux 内部，不强制需要）
+#    如要让 DSH 也读写手机存储再执行:
+# termux-setup-storage
 ```
 
 然后一行部署（装缺失依赖→编译→装 DSH→打补丁→验证）：
@@ -54,7 +55,7 @@ dsh web
 | **运行时** | `nodejs`（自带 npm） | DSH 运行 |
 | **库/头文件** | `libandroid-support`、`libandroid-spawn`、`libandroid-glob` | 提供 `spawn.h` 等 Bionic 缺失的 POSIX 头文件（koffi 编译必需） |
 | **包管理** | `node-gyp`、`pnpm` | node-pty 编译、DSH profile |
-| **存储** | `termux-setup-storage` | 授权访问手机存储（默认工作区=sdcard） |
+| **存储** | （可选）`termux-setup-storage` | 如需读写手机存储；默认工作区在 Termux 私有 `~/.dsh/workspace`，无需手机存储 |
 | **DSH 本体** | `npm install -g @deepseek-ai/dsh` | 主程序 |
 | **sharp 运行时** | `@img/sharp-wasm32` + `@emnapi/runtime` | **android-arm64 无 sharp 原生二进制，必须 WASM 兜底** |
 
@@ -129,7 +130,7 @@ sha256sum dsh-termux-deploy.sh
 
 ## 开发 / 贡献
 
-- **模块化**：每个功能一个函数（`doctor`/`ensure_tools`/`npm 安装`/`ensure_sharp_wasm`/`patch_*`/`install_launcher`/`setup_sdcard`/`verify`/`serve`）。
+- **模块化**：每个功能一个函数（`doctor`/`ensure_tools`/`npm 安装`/`ensure_sharp_wasm`/`patch_*`/`install_launcher`/`setup_workspace`/`verify`/`serve`）。
 - **配置区**：脚本顶部集中路径/端口/仓库地址，改这里调行为。
 - **子命令**：底部 `case "$COMMAND"` 统一路由。
 

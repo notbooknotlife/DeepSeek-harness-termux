@@ -6,7 +6,7 @@
 #  融合了两套思路：
 #    · 可靠性硬核适配(源自 android-termux-dsh)：Node版本校验、android30编译参数、
 #      common.gypi补丁、sharp WASM兜底、link→rename补丁、--expose-internals包装器、
-#      sdcard默认工作区、逐项验证。
+#      Termux工作区、逐项验证。
 #    · 工程化(你要求的)            ：模块化、幂等、.npmrc备份回滚、manifest清单、
 #      doctor/status/serve/uninstall 子命令、SHA256自校验。
 #
@@ -32,7 +32,8 @@ DSH_CONF_HOME="$HOME_DIR/.dsh"
 NPMRC="$HOME_DIR/.npmrc"
 NPMRC_BACKUP="$HOME_DIR/.npmrc.dsh.bak"
 LOG_FILE="$HOME_DIR/.dsh_deploy.log"
-WORKSPACE="${DSH_WORKSPACE:-$HOME/storage/shared}"
+# 默认工作区：Termux 私有目录（便于删除、不污染手机存储）。可用 DSH_WORKSPACE 覆盖。
+WORKSPACE="${DSH_WORKSPACE:-$HOME_DIR/.dsh/workspace}"
 MIRROR="https://registry.npmmirror.com"
 EXPECTED_SHA256="${EXPECTED_SHA256:-}"
 LANG_HOST="${DSH_HOST:-127.0.0.1}"
@@ -220,9 +221,9 @@ install(){
   info "安装启动包装器..."
   install_launcher
 
-  # --- G. 配置 sdcard 默认工作区 + 手机端 UI 资源 ---
-  info "配置 sdcard 工作区与手机端资源..."
-  setup_sdcard
+  # --- G. 配置 Termux 工作区 + 手机端 UI 资源 ---
+  info "配置 Termux 工作区与手机端资源..."
+  setup_workspace
   install_mobile
 
   # --- H. 逐项验证(DSH 最终真正可用) ---
@@ -292,21 +293,17 @@ install_launcher(){
   chmod +x "$DSH_BIN"; ok "包装器已写入 $DSH_BIN"
 }
 
-#------ sdcard 存储授权 + 默认工作区 ------
-setup_sdcard(){
-  if have termux-setup-storage; then
-    info "执行 termux-setup-storage（若有弹窗请允许存储权限）..."
-    termux-setup-storage >>"$LOG_FILE" 2>&1 || warn "termux-setup-storage 未完成"
+#------ Termux 工作区 + 默认工作区 ------
+setup_workspace(){
+  # 工作区根设在 Termux 私有目录（默认 ~/.dsh/workspace），便于删除、不污染手机存储。
+  mkdir -p "$WORKSPACE" "$DSH_CONF_HOME/profiles/web"
+  local PATCH="$DSH_CONF_HOME/profiles/web/cordis.patch.yml"
+  if grep -q "id: fs-sandbox" "$PATCH" 2>/dev/null; then
+    ok "cordis.patch.yml 已有 fs-sandbox"
+  else
+    printf '\n- id: fs-sandbox\n  config:\n    cwd: %s\n' "$WORKSPACE" >> "$PATCH"
+    ok "工作区固定到 Termux: $WORKSPACE"
   fi
-  if [ -d "$HOME/storage/shared" ]; then
-    mkdir -p "$DSH_CONF_HOME/profiles/web"
-    local PATCH="$DSH_CONF_HOME/profiles/web/cordis.patch.yml"
-    if grep -q "id: fs-sandbox" "$PATCH" 2>/dev/null; then ok "cordis.patch.yml 已有 fs-sandbox"
-    else
-      printf '\n- id: fs-sandbox\n  config:\n    cwd: %s\n' "$WORKSPACE" >> "$PATCH"
-      ok "默认工作区固定到 sdcard: $WORKSPACE"
-    fi
-  else warn "sdcard 不可访问，跳过工作区配置(可后跑 termux-setup-storage)"; fi
 }
 
 #------ 手机端 UI 适配资源(本地可编辑) ------
@@ -337,7 +334,7 @@ verify(){
   (cd "$D" && node --input-type=module -e "await import('koffi')" >/dev/null 2>&1) && ok "koffi 可加载" || err "koffi 加载失败"
   [ -f "$D/node_modules/node-pty/build/Release/pty.node" ] && ok "node-pty 已编译" || warn "node-pty 未编译"
   (cd "$D" && node --input-type=module -e "import('sharp').then(s=>{if(!s.default.versions)process.exit(1)}).catch(()=>process.exit(1))" >/dev/null 2>&1) && ok "sharp(wasm) 可加载" || warn "sharp 加载异常"
-  [ -d "$HOME/storage/shared" ] && ok "sdcard 可访问" || warn "sdcard 不可访问"
+  [ -d "$WORKSPACE" ] && ok "工作区可访问: $WORKSPACE" || warn "工作区不可访问: $WORKSPACE"
   ok "验证完成。启动: dsh web"
 }
 
