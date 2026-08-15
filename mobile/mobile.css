@@ -1,109 +1,52 @@
-/* =============================================================================
- * dsh web —— 设置面板手机端适配样式 (mobile.css)
- * -----------------------------------------------------------------------------
- * 与 dsh-setting-mobile.user.js 保持一致（user.js 是自动注入首选，本文件是
- * 可编辑的样式源，也可用于 Stylus / 手动注入）。
- *
- * 方案要点：
- *  1. 设置面板：顶部、底部各留 15% 视口高，面板固定 70vh，水平居中
- *  2. 左导航栏限宽(约128px)，保留文字但让出右栏空间
- *  3. 右内容区吃掉剩余空间，禁止横向溢出，内容超出则在面板内纵向滚动
- *  4. Agent预设 卡片列表在窄屏(<620px)改单列自适应，不截半
- *  5. 右栏文本自适应字号 + 防竖排
- * ========================================================================== */
 
-/* ---- 设置面板：上下各留 15%，固定 70vh，水平居中 ---- */
-[class$="_overlay"] {
-  justify-content: center;
-  align-items: flex-start !important;
+/* ---- 输入行 ---- */
+.uV2eYG_row {
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+  gap: 2% !important;
+  align-items: center !important;
 }
-[class$="_panel"] {
-  margin-top: 15vh !important;
-  height: 70vh !important;
-  max-height: 70vh !important;
-  width: min(520px, calc(100vw - 16px)) !important;
-  max-width: calc(100vw - 16px) !important;
-  overflow: hidden !important;
-  display: flex;
-}
+.uV2eYG_row > * { flex: 0 1 auto !important; min-width: 0 !important; }
+.uV2eYG_trailing { flex: 0 1 auto !important; min-width: 0 !important; gap: 1% !important; }
+.uV2eYG_tools, .uV2eYG_modes { gap: 2% !important; }
 
-/* ---- 内层滚动：内容多时在面板内部纵向滚，不挤爆屏幕 ---- */
-[class$="_content"] {
-  flex: 1 1 0%;
-  min-height: 0 !important;
-  min-width: 0 !important;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+/* ---- 模型/模式选择器 trigger ---- */
+.uV2eYG_row [class$="_trigger"] {
+  flex-wrap: nowrap !important; height: auto !important; min-height: 28px !important;
+  max-width: 100% !important; gap: 2% !important; padding-left: 6px !important; padding-right: 6px !important;
 }
-[class$="_options"] {
-  flex: 1 1 0%;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding-left: 12px !important;
-  padding-right: 12px !important;
+.uV2eYG_row [class$="_triggerLabel"] {
+  white-space: nowrap !important; text-overflow: ellipsis !important;
+  min-width: 0 !important; flex: 0 1 auto !important; overflow: hidden !important;
 }
+.uV2eYG_row [class$="_triggerEffort"],
+.uV2eYG_row [class$="_chevron"] { flex: 0 0 auto !important; margin-left: 2% !important; }
 
-/* ---- 左导航：限宽，保留文字但让出右栏空间 ---- */
-[class$="_nav"] {
-  flex: 0 0 auto !important;
-  width: 128px !important;
-  min-width: 96px !important;
-  max-width: 128px !important;
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-  overflow: hidden !important;
+/* ---- 模型选择下拉菜单 ---- */
+._7KE1Ra_menu {
+  max-width: calc(100vw - 8px) !important; width: max-content !important; min-width: 160px !important;
 }
-[class$="_navLabel"] {
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
-}
+._7KE1Ra_menu [class$="_cell"] { height: auto !important; min-height: 40px !important; flex-wrap: nowrap !important; gap: 2% !important; }
+._7KE1Ra_menu [class$="_cellLabel"] { flex: 0 1 auto !important; min-width: 0 !important; white-space: nowrap !important; text-overflow: ellipsis !important; overflow: hidden !important; }
+._7KE1Ra_menu [class$="_cellValue"] { flex: 0 1 auto !important; min-width: 0 !important; white-space: nowrap !important; text-overflow: ellipsis !important; overflow: hidden !important; }
+._7KE1Ra_menu [class$="_cellChevron"] { flex: 0 0 auto !important; margin-left: 2% !important; }
 
-/* ---- Agent预设 卡片：窄屏单列自适应，不截半 ---- */
+/* ---- 设置面板 ---- */
+.VOzbGW_overlay { justify-content: center !important; align-items: flex-start !important; }
+.VOzbGW_panel {
+  margin-top: 15vh !important; height: 70vh !important; max-height: 70vh !important;
+  width: min(520px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important;
+  overflow: hidden !important; display: flex !important;
+}
+.VOzbGW_content { flex: 1 1 0% !important; min-height: 0 !important; min-width: 0 !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+.VOzbGW_options { flex: 1 1 0% !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; padding-left: 12px !important; padding-right: 12px !important; }
+.VOzbGW_nav { flex: 0 0 auto !important; width: 128px !important; min-width: 96px !important; max-width: 128px !important; padding-left: 8px !important; padding-right: 8px !important; overflow: hidden !important; }
+.VOzbGW_navLabel { white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; }
 @media (max-width: 620px) {
-  [class$="_cards"] {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-  [class$="_card"], [class$="_cardMain"] {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-  [class$="_cardName"], [class$="_cardDesc"] {
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
-  }
+  .VOzbGW_panel [class$="_cards"] { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .VOzbGW_panel [class$="_card"], .VOzbGW_panel [class$="_cardMain"] { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
+  .VOzbGW_panel [class$="_cardName"], .VOzbGW_panel [class$="_cardDesc"] { white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; }
 }
-
-/* ---- 右内容项：防溢出 + 自适应字号 + 不竖排 ---- */
-[class$="_content"] [class$="_row"] {
-  flex-wrap: wrap !important;
-  align-items: flex-start !important;
-  gap: 6px;
-}
-[class$="_content"] [class$="_rowText"] {
-  flex: 1 1 0px;
-  min-width: 0 !important;
-  padding-right: 0 !important;
-  display: block;
-}
-[class$="_content"] [class$="_title"],
-[class$="_content"] [class$="_desc"] {
-  font-size: clamp(12.5px, 2.4vw, 16px) !important;
-  line-height: 1.4;
-  writing-mode: horizontal-tb !important;
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
-  max-width: 100% !important;
-}
-
-/* ---- 全局防溢出 ---- */
-[class$="_panel"] * {
-  max-width: 100% !important;
-  box-sizing: border-box;
-}
+.VOzbGW_panel [class$="_row"] { flex-wrap: wrap !important; align-items: flex-start !important; gap: 6px !important; }
+.VOzbGW_panel [class$="_rowText"] { flex: 1 1 0px !important; min-width: 0 !important; padding-right: 0 !important; display: block !important; }
+.VOzbGW_panel [class$="_title"], .VOzbGW_panel [class$="_desc"] { font-size: clamp(12.5px, 2.4vw, 16px) !important; line-height: 1.4 !important; writing-mode: horizontal-tb !important; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; max-width: 100% !important; }
