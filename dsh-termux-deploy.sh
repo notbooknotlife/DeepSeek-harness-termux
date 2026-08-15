@@ -166,37 +166,26 @@ PY
 }
 
 #------------------------------ install(缺啥补啥, 分层递进) ------------------------------
-# 正确顺序：①修 dpkg/更新源 ②装编译链+node ③配npm ④装DSH本体 ⑤打补丁
-#          ⑥包装器 ⑦sdcard工作区 ⑧验证。DSH 在全部前置就绪后安装、最后真正启用。
+# DSH 在全部前置就绪后再安装本体、最后补丁/工作区/验证（真正启用）。
 install(){
   doctor
   info "== 开始安装 (缺什么补什么) =="
 
-  # --- ① 修复可能中断的 dpkg + 更新源 pkg（Termux 刚装常遇到）---
-  info "① 修复 dpkg 中断并更新软件源 ..."
-  dpkg --configure -a >>"$LOG_FILE" 2>&1 || warn "dpkg --configure -a 提示问题(可忽略)"
-  if [ "$SKIP_UPGRADE" -ne 1 ]; then
-    pkg update -y >>"$LOG_FILE" 2>&1 || warn "pkg update 失败(可继续)"
-    pkg upgrade -y >>"$LOG_FILE" 2>&1 || warn "pkg upgrade 失败(可继续)"
-  else
-    warn "已跳过 pkg update/upgrade(--skip-upgrade)"
-  fi
-
-  # --- ② 装编译工具链 + nodejs + git ---
+  # --- A. 环境基础：装编译工具链 + nodejs + git（ensure_tools 内部已含 pkg update/upgrade）---
   ensure_tools
 
-  # --- ③ 配置 npm(镜像/allow-scripts) + 装 node-gyp + pnpm ---
+  # --- B. 配置 npm(镜像/allow-scripts) + node-gyp + pnpm + 架构目标 ---
   configure_npm
   ensure_node_gyp
   ensure_pnpm
   resolve_target
 
-  # 网络预检：官方源不通切镜像
+  # --- C. 网络预检：官方源不通切镜像 ---
   if [ "$CN_MODE" -eq 0 ] && ! curl -fsS --max-time 8 -o /dev/null https://registry.npmjs.org/-/ping 2>/dev/null; then
     warn "官方源不通，切 npmmirror 镜像"; npm config set registry "$MIRROR" --location=user; fi
 
-  # --- ④ 装 DSH 本体(最耗时, 5~15 分钟) ---
-  info "④ 全局安装 $DSH_PKG（约 5~15 分钟，下载期无输出属正常）... "
+  # --- D. 装 DSH 本体(最耗时, 5~15 分钟) ---
+  info "全局安装 $DSH_PKG（约 5~15 分钟，下载期无输出属正常）... "
   export CFLAGS="-target $TARGET"; export CXXFLAGS="-target $TARGET"
   export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
   if ! npm install -g --foreground-scripts --no-audit --no-fund "$DSH_PKG"; then
@@ -209,21 +198,21 @@ install(){
   have dsh || { err "npm 装完仍未找到 dsh 命令"; return 1; }
   ok "DSH 本体已就位: $(command -v dsh)"
 
-  # --- ⑤ 打 Termux 硬核补丁(依赖 DSH 包文件存在，故在 ④ 之后) ---
-  info "⑤ 应用 Termux 补丁(link→rename / sharp wasm)..."
+  # --- E. 打 Termux 硬核补丁(依赖 DSH 包文件存在，故在 D 之后) ---
+  info "应用 Termux 补丁(link→rename / sharp wasm)..."
   patch_link_rename
   sharp_wasm_fallback
 
-  # --- ⑥ 启动包装器(--expose-internals, HMR 必需) ---
-  info "⑥ 安装启动包装器..."
+  # --- F. 启动包装器(--expose-internals, HMR 必需) ---
+  info "安装启动包装器..."
   install_launcher
 
-  # --- ⑦ 配置 sdcard 默认工作区 + 手机端 UI 资源 ---
-  info "⑦ 配置 sdcard 工作区与手机端资源..."
+  # --- G. 配置 sdcard 默认工作区 + 手机端 UI 资源 ---
+  info "配置 sdcard 工作区与手机端资源..."
   setup_sdcard
   install_mobile
 
-  # --- ⑧ 逐项验证(DSH 最终真正可用) ---
+  # --- H. 逐项验证(DSH 最终真正可用) ---
   verify
   manifest
 }
