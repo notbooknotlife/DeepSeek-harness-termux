@@ -74,21 +74,27 @@ launch_dsh(){
 cmd_uninstall(){
   echo
   echo "${C_RED}⚠  即将完全卸载 DSH(全局，含会话/配置 ~/.dsh)${C_RST}"
-  read -rp "确认卸载？再输入 5 确认: " c2
-  if [ "$c2" = "5" ]; then
-    echo "执行卸载..."
-    [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
-    # 完全(全局)卸载：连配置/会话一起清掉
-    rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
-    echo
-    echo "${C_GRN}✅ 已完全卸载 DSH(含配置/会话 ~/.dsh)。${C_RST}"
-    echo "菜单脚本已随 ~/.dsh 移除，返回初始界面。"
-    echo
-    exit 0   # 退出菜单(回到 Termux 提示符)
-  else
-    echo "${C_YEL}已取消卸载。${C_RST}"
-    echo; read -rp "按回车返回菜单..." _
-  fi
+  read -rp "确认卸载？再输入 5 确认(0=返回菜单): " c2
+  case "$c2" in
+    5)
+      echo "执行卸载..."
+      [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
+      # 完全(全局)卸载：连配置/会话一起清掉
+      rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
+      echo
+      echo "${C_GRN}✅ 已完全卸载 DSH(含配置/会话 ~/.dsh)。${C_RST}"
+      echo "菜单脚本已随 ~/.dsh 移除，返回初始界面。"
+      echo
+      exit 0   # 退出菜单(回到 Termux 提示符)
+      ;;
+    0)
+      echo "${C_YEL}已取消卸载，返回菜单。${C_RST}"
+      ;;
+    *)
+      echo "${C_YEL}输入无效(需 5 确认/0 返回)，已取消。${C_RST}"
+      echo; read -rp "按回车返回菜单..." _
+      ;;
+  esac
 }
 
 # ---- 主循环 ----
