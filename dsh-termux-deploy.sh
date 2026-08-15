@@ -85,18 +85,18 @@ spin_run(){
   local pid=$!
   # 前台转圈：进程在就转
   while kill -0 "$pid" 2>/dev/null; do
-    printf "\r[%s]  %s ..." "${chars:((i++%4)):1}" "$desc"
+    printf "\r\033[1G\033[K[%s]  %s ..." "${chars:((i++%4)):1}" "$desc"
     sleep 0.15
   done
   wait "$pid"; rc=$?
   # 结束：固定打勾/打叉/超时
   if [ "$rc" -eq 0 ]; then
-    printf "\r[OK]  %s   \n" "$desc"
+    printf "\r\033[1G\033[K[OK]  %s   \n" "$desc"
   elif [ "$rc" -eq 124 ]; then
-    printf "\r[TIMEOUT] %s (超过 ${to}s)   \n" "$desc"
+    printf "\r\033[1G\033[K[TIMEOUT] %s (超过 ${to}s)   \n" "$desc"
     warn "该步骤超时。如需更长等待，设 SPIN_TIMEOUT 后重试"
   else
-    printf "\r[ERR] %s   \n" "$desc"
+    printf "\r\033[1G\033[K[ERR] %s   \n" "$desc"
     warn "错误详情见日志: $LOG_FILE"
   fi
   return "$rc"
@@ -123,7 +123,7 @@ doctor(){
     else ok "Node 版本满足要求 ($(node -v))"
     fi
   fi
-  [ -d "$D" ] && ok "DSH 已安装于 $D" || info "DSH 未安装（将随 install 安装）"
+  if [ -d "$D" ]; then ok "DSH 已安装于 $D"; else info "DSH 未安装（将随 install 安装）"; fi
 }
 
 #------------------------------ .npmrc 备份/配置 ------------------------------
@@ -204,7 +204,7 @@ open(p,"w").write(s)
 PY
     ok "已修补 $f"; patched=1
   done
-  [ "$patched" -eq 0 ] && warn "未找到 common.gypi 缓存(若 node-pty 报 android_ndk_path 重跑即可)"
+  if [ "$patched" -eq 0 ]; then warn "未找到 common.gypi 缓存(若 node-pty 报 android_ndk_path 重跑即可)"; fi
 }
 
 #------------------------------ install(缺啥补啥, 分层递进) ------------------------------
@@ -304,7 +304,7 @@ open(p,"w").write(s); sys.exit(0)
 PY
     ok "已修补 $f"; patched=1
   fi
-  [ "$patched" -eq 0 ] && info "link→rename 无需修补(或包结构已变)"
+  if [ "$patched" -eq 0 ]; then info "link→rename 无需修补(或包结构已变)"; fi
 }
 
 #------ sharp WASM 兜底(sharp 无 android-arm64 预编译) ------
@@ -375,9 +375,9 @@ verify(){
   info "== 验证 =="
   have dsh && ok "dsh" || err "dsh 缺失"
   (cd "$D" && node --input-type=module -e "await import('koffi')" >/dev/null 2>&1) && ok "koffi 可加载" || err "koffi 加载失败"
-  [ -f "$D/node_modules/node-pty/build/Release/pty.node" ] && ok "node-pty 已编译" || warn "node-pty 未编译"
+  if [ -f "$D/node_modules/node-pty/build/Release/pty.node" ]; then ok "node-pty 已编译"; else warn "node-pty 未编译"; fi
   (cd "$D" && node --input-type=module -e "import('sharp').then(s=>{if(!s.default.versions)process.exit(1)}).catch(()=>process.exit(1))" >/dev/null 2>&1) && ok "sharp(wasm) 可加载" || warn "sharp 加载异常"
-  [ -d "$WORKSPACE" ] && ok "工作区可访问: $WORKSPACE" || warn "工作区不可访问: $WORKSPACE"
+  if [ -d "$WORKSPACE" ]; then ok "工作区可访问: $WORKSPACE"; else warn "工作区不可访问: $WORKSPACE"; fi
   ok "验证完成。启动: dsh web"
 }
 
@@ -399,7 +399,7 @@ serve(){
   echo "--------------------------------------------------------------"
   echo "  本机访问:      http://127.0.0.1:$LANG_PORT"
   local lanip; lanip="$(ifconfig 2>/dev/null | awk '/^[a-z]/{iface=$1}/inet /{print iface,$2}' | awk '$1 ~ /^wlan/{print $2; exit}' | cut -d: -f2)"
-  [ -z "$lanip" ] && lanip="$(ifconfig 2>/dev/null | awk '/^[a-z]/{iface=$1}/inet /{print iface,$2}' | grep -vE '^(lo|docker|tun|virbr)' | awk '{print $2; exit}' | cut -d: -f2)"
+  if [ -z "$lanip" ]; then lanip="$(ifconfig 2>/dev/null | awk '/^[a-z]/{iface=$1}/inet /{print iface,$2}' | grep -vE '^(lo|docker|tun|virbr)' | awk '{print $2; exit}' | cut -d: -f2)"; fi
   [ -n "$lanip" ] && echo "  局域网设备访问: http://$lanip:$LANG_PORT"
   echo "--------------------------------------------------------------"
   exec "$DSH_BIN" --profile web --host "$LANG_HOST" --port "$LANG_PORT"
