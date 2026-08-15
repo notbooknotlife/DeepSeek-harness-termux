@@ -38,7 +38,9 @@ EXPECTED_SHA256="${EXPECTED_SHA256:-}"
 LANG_HOST="${DSH_HOST:-127.0.0.1}"
 LANG_PORT="${DSH_PORT:-3080}"
 MOBILE_DIR="$HOME_DIR/.dsh-mobile"   # 手机端 UI 适配资源（本地可编辑）
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本目录：兼容「直接运行」与「curl|bash 以 stdin 执行」两种情况。
+# stdin 执行时 BASH_SOURCE[0]/$0 可能为空或不可用 → 安全降级，不因 set -u 崩溃。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || printf '%s' "$HOME")"
 REPO_MOBILE="$SCRIPT_DIR/mobile"     # 仓库内手机端适配资源(单一来源)
 
 CN_MODE=0

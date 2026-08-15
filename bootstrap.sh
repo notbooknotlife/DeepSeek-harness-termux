@@ -18,7 +18,7 @@ set -u
 #------------------------------------------------------------------------------
 # 配置：发布时改为你的仓库 raw 地址（并可选填入指纹）
 #------------------------------------------------------------------------------
-RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com/<YOUR_USER>/dsh-termux-deploy/main}"
+RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com/notbooknotlife/DeepSeek-harness-termux/main}"
 INSTALL_NAME="dsh-termux-deploy.sh"        # 真正的安装器文件
 APPROVED_SHA256="${APPROVED_SHA256:-}"     # 留空=跳过强校验；必填则启动前校验
 
