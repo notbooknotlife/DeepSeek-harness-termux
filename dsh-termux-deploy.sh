@@ -399,8 +399,43 @@ install_shellmenu(){
   else
     curl -fsSL --max-time 20 "$RAW_BASE/dshrc.sh" -o "$MENU_DIR/dshrc.sh" 2>/dev/null || true
   fi
-  # 让 dshrc.sh 指向 ~/.dsh(菜单实际位置)，不依赖具体 clone 路径
-  sed -i "s|DSH_PROJECT_DIR="\${DSH_PROJECT_DIR:-\$HOME/storage/dsh-src}"|DSH_PROJECT_DIR="\${DSH_PROJECT_DIR:-\$HOME/.dsh}"|" "$MENU_DIR/dshrc.sh" 2>/dev/null || true
+  # 直接覆盖 dshrc.sh 为"指向 ~/.dsh"的版本（不依赖 clone 路径、不靠 sed）
+  # 用带引号 heredoc(<<'DHEOF')，内容原样写入，无转义歧义。
+  cat > "$MENU_DIR/dshrc.sh" <<'DHEOF'
+# dsh shell 集成——由 dsh-termux-deploy.sh 生成
+# 让 `dsh`(无参数)弹出交互菜单；`dsh 参数`仍走原生 dsh。
+DSH_PROJECT_DIR="${DSH_PROJECT_DIR:-$HOME/.dsh}"
+DSH_MENU_PATH="$DSH_PROJECT_DIR/dshmenu.sh"
+function dsh {
+  if [ $# -eq 0 ]; then
+    if [ -f "$DSH_MENU_PATH" ]; then
+      bash "$DSH_MENU_PATH"
+    else
+      echo "[dsh] 未找到菜单脚本: $DSH_MENU_PATH"
+      command dsh "$@"
+    fi
+  else
+    command dsh "$@"
+  fi
+}
+DHEOF
+# dsh shell 集成——由 dsh-termux-deploy.sh 生成
+# 让 \`dsh\`(无参数)弹出交互菜单；\`dsh 参数\`仍走原生 dsh。
+DSH_PROJECT_DIR="\${DSH_PROJECT_DIR:-\$HOME/.dsh}"
+DSH_MENU_PATH="\$DSH_PROJECT_DIR/dshmenu.sh"
+function dsh {
+  if [ \$# -eq 0 ]; then
+    if [ -f "\$DSH_MENU_PATH" ]; then
+      bash "\$DSH_MENU_PATH"
+    else
+      echo "[dsh] 未找到菜单脚本: \$DSH_MENU_PATH"
+      command dsh "\$@"
+    fi
+  else
+    command dsh "\$@"
+  fi
+}
+SHEOF
 
   # 往 ~/.bashrc 加 source(幂等)
   local BASHRC="$HOME_DIR/.bashrc"
@@ -446,6 +481,11 @@ serve(){
   if [ -z "$lanip" ]; then lanip="$(ifconfig 2>/dev/null | awk '/^[a-z]/{iface=$1}/inet /{print iface,$2}' | grep -vE '^(lo|docker|tun|virbr)' | awk '{print $2; exit}' | cut -d: -f2)"; fi
   [ -n "$lanip" ] && echo "  局域网设备访问: http://$lanip:$LANG_PORT"
   echo "--------------------------------------------------------------"
+  # 启动前自动打开浏览器(后台)到本机地址；服务起来后刷新即可。仅启动一个服务。
+  if command -v termux-open-url >/dev/null 2>&1; then
+    ( sleep 2; termux-open-url "http://127.0.0.1:$LANG_PORT" >/dev/null 2>&1 ) &
+    ok "已自动打开浏览器: http://127.0.0.1:$LANG_PORT"
+  fi
   exec "$DSH_BIN" --profile web --host "$LANG_HOST" --port "$LANG_PORT"
 }
 
