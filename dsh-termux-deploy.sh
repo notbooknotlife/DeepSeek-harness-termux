@@ -18,7 +18,7 @@
 #   bash dsh-termux-deploy.sh uninstall      卸载并还原 .npmrc
 #
 #  --cn   使用 npmmirror 镜像(中国大陆网络)
-#  --skip-upgrade  跳过 pkg update/upgrade
+#  --skip-upgrade  跳过 pkg 相关操作（脚本默认不执行 pkg update/upgrade，由用户自行维护）
 #===============================================================================
 set -euo pipefail
 
@@ -114,24 +114,24 @@ configure_npm(){
 ensure_tools(){
   # 命令型工具：用 command -v 判断，缺哪个装哪个
   local tool_pkgs="git curl cmake clang make python binutils pkg-config termux-tools"
-  # 库/头文件型依赖(非命令)：用 dpkg -s 判断是否已安装，缺则补装（koffi编译需 spawn.h 等）
+  # 库/头文件型依赖(非命令)，用 dpkg -s 判断（koffi 编译需 spawn.h → libandroid-support 等）
   local lib_pkgs="libandroid-spawn libandroid-support libandroid-glob"
-  if [ "$SKIP_UPGRADE" -ne 1 ]; then
-    info "pkg update && pkg upgrade ..."
-    pkg update -y >>"$LOG_FILE" 2>&1 || warn "pkg update 失败(可忽略)"
-    pkg upgrade -y >>"$LOG_FILE" 2>&1 || warn "pkg upgrade 失败"
-  fi
-  # 命令型
-  local need=""
+
+  local need="" lib_need=""
   for p in $tool_pkgs; do have "$p" || need="$need $p"; done
-  # 库型：用 dpkg 判断
-  local lib_need=""
   for p in $lib_pkgs; do dpkg -s "$p" >/dev/null 2>&1 || lib_need="$lib_need $p"; done
+  have nodejs || need="$need nodejs"
+
+  # 缺依赖才安装；脚本不执行 pkg update/upgrade（交由用户自行保证 Termux 索引正常）。
   if [ -n "$need$lib_need" ]; then
     info "安装缺失依赖:$need $lib_need"
-    pkg install -y $need $lib_need >>"$LOG_FILE" 2>&1 || err "pkg install 失败"
+    if ! pkg install -y $need $lib_need >>"$LOG_FILE" 2>&1; then
+      warn "pkg install 失败。若报索引/依赖错误，请先手动执行: pkg update && pkg upgrade"
+      err "然后重新运行本脚本。日志见 $LOG_FILE"
+    fi
+  else
+    ok "依赖工具与库已齐(无需 pkg 操作)"
   fi
-  have nodejs || pkg install -y nodejs >>"$LOG_FILE" 2>&1 || warn "nodejs 安装失败"
 }
 
 ensure_node_gyp(){
@@ -181,7 +181,7 @@ install(){
   doctor
   info "== 开始安装 (缺什么补什么) =="
 
-  # --- A. 环境基础：装编译工具链 + nodejs + git（ensure_tools 内部已含 pkg update/upgrade）---
+  # --- A. 环境基础：装编译工具链 + nodejs + git（pkg 更新由用户自行保证）---
   ensure_tools
 
   # --- B. 配置 npm(镜像/allow-scripts) + node-gyp + pnpm + 架构目标 ---
@@ -191,17 +191,17 @@ install(){
   resolve_target
 
   # --- C. 网络预检：官方源不通切镜像 ---
-  if [ "$CN_MODE" -eq 0 ] && ! curl -fsS --max-time 8 -o /dev/null https://registry.npmjs.org/-/ping 2>/dev/null; then
+  if [ "$CN_MODE" -eq 0 ] && ! curl -fsS --max-time 3 -o /dev/null https://registry.npmjs.org/-/ping 2>/dev/null; then
     warn "官方源不通，切 npmmirror 镜像"; npm config set registry "$MIRROR" --location=user; fi
 
   # --- D. 装 DSH 本体(最耗时, 5~15 分钟) ---
   info "全局安装 $DSH_PKG（约 5~15 分钟，下载期无输出属正常）... "
   export CFLAGS="-target $TARGET"; export CXXFLAGS="-target $TARGET"
   export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
-  if ! npm install -g --foreground-scripts --no-audit --no-fund "$DSH_PKG"; then
+  if ! npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG"; then
     warn "首次安装失败，补 common.gypi 后重试一次"
     patch_common_gypi
-    npm install -g --foreground-scripts --no-audit --no-fund "$DSH_PKG" \
+    npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG" \
       || { err "DSH 安装失败，见 $LOG_FILE"; unset CFLAGS CXXFLAGS CMAKE_BUILD_PARALLEL_LEVEL; return 1; }
   fi
   unset CFLAGS CXXFLAGS CMAKE_BUILD_PARALLEL_LEVEL
@@ -396,7 +396,7 @@ case "$COMMAND" in
   mobile)     info "重置手机端适配资源到默认并覆盖本地修改..."; install_mobile ;;
   help|--help|-h)
     echo "用法: bash $0 <命令> [--host ip] [--port 端口]"
-    echo "  install [--skip-upgrade] [--cn]   完整安装(缺啥补啥，含Termux硬核适配)"
+    echo "  install [--skip-upgrade] [--cn]   完整安装(缺啥补啥，快；--skip-upgrade 连pkg索引刷新也跳过)"
     echo "  serve   [--host 0.0.0.0] [--port] 启动Web UI"
     echo "  mobile                            (重)生成手机端UI适配资源到 ~/.dsh-mobile"
     echo "  doctor                            环境自检"

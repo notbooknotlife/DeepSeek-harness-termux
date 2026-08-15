@@ -11,20 +11,29 @@ Landlock/bubblewrap、原生模块需现场编译）无法直接 `npm install -g
 
 ## 快速开始（一键）
 
-在**干净的新装 Termux** 里，先授权存储（弹窗点允许）：
+在**干净的新装 Termux** 里，先做两步准备（**请务必先自己更新 Termux 软件源**，
+脚本不再代劳）：
 
 ```sh
+# ① 刷新并升级 Termux 软件源（确保环境索引正常，网络慢也可先只 update）
+pkg update -y && pkg upgrade -y
+
+# ② 授权访问手机存储（第一次会弹系统授权框，点"允许"）
 termux-setup-storage
 ```
 
-然后一行部署（下载→装依赖→编译→装 DSH→打补丁→验证）：
+然后一行部署（装缺失依赖→编译→装 DSH→打补丁→验证）：
 
 ```sh
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/notbooknotlife/DeepSeek-harness-termux/main/bootstrap.sh)" install
 ```
 
-> **首次运行较久（5~15 分钟）**：会 `pkg update/upgrade`、装编译链、`npm install` DSH、
-> 现场编译 koffi/node-pty 等原生模块。**期间长时间无输出属正常**，请保持屏幕常亮。
+> **首次运行**：装编译链 + `npm install` DSH + 现场编译 koffi/node-pty 等原生模块
+>（下载/编译阶段几分钟，**无输出属正常**，保持屏幕常亮）。
+>
+> **提速设计**：脚本**不执行 `pkg update/upgrade`**（由你自行维护、更快更可控），
+> 只在需要时 `pkg install` 缺失依赖；`npm` 用 `--prefer-offline` 复用缓存；
+> 已装的依赖对应步骤直接跳过。
 
 安装完成后启动：
 
