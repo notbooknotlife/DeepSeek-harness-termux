@@ -52,17 +52,23 @@ launch_dsh(){
   [ -n "$lanip" ] && echo "  局域网设备访问: http://$lanip:$port"
 
   if [ "$mode" = "persist" ]; then
-    # 常驻: 提示服务保持运行
+    # 常驻(1): 保持运行，打开浏览器
     command -v termux-open-url >/dev/null 2>&1 && { (termux-open-url "http://127.0.0.1:$port" >/dev/null 2>&1 &); }
     echo "${C_GRN}（1）已启动并常驻。可在浏览器使用 http://127.0.0.1:$port${C_RST}"
+    echo
+    read -rp "按回车返回菜单..." _
   else
-    # 测试模式(2/3): 关闭已启动的端口，仅验证可用
+    # 测试模式(2/3): 服务先保持运行，用户确认可用；按回车返回菜单时才关闭端口
+    command -v termux-open-url >/dev/null 2>&1 && { (termux-open-url "http://127.0.0.1:$port" >/dev/null 2>&1 &); }
+    echo "${C_YEL}（2/3）端口 $port 已开启，可先在浏览器测试。${C_RST}"
+    echo
+    read -rp "测试完按回车返回菜单(将自动关闭此端口): " _
+    # 回车返回菜单 → 此刻关闭端口
     if command -v pgrep >/dev/null 2>&1; then
       pkill -f "dsh/lib/bin.js" 2>/dev/null
     fi
-    echo "${C_YEL}（测试）本次端口已验证(短暂启动后已关闭)。需长期用到启动(1)。${C_RST}"
+    echo "${C_YEL}已关闭端口 $port。${C_RST}"
   fi
-  echo; read -rp "按回车返回菜单..." _
 }
 
 cmd_uninstall(){
