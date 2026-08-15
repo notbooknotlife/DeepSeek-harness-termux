@@ -83,20 +83,20 @@ spin_run(){
   # 后台执行(输出进日志，不刷屏)；用 timeout 包住防卡死
   ( timeout "$to" "$@" >>"$LOG_FILE" 2>&1 ) &
   local pid=$!
-  # 前台转圈：进程在就转
+  # 前台转圈：进程在就转。用 \r\033[2K 清整行原地刷新(已验证 Termux 支持)
   while kill -0 "$pid" 2>/dev/null; do
-    printf "\r\033[1G\033[K[%s]  %s ..." "${chars:((i++%4)):1}" "$desc"
-    sleep 0.15
+    printf '\r\033[2K[%s]  %s ...' "${chars:$((i%4)):1}" "${desc:0:40}"
+    i=$((i+1)); sleep 0.12
   done
   wait "$pid"; rc=$?
   # 结束：固定打勾/打叉/超时
   if [ "$rc" -eq 0 ]; then
-    printf "\r\033[1G\033[K[OK]  %s   \n" "$desc"
+    printf '\r\033[2K[OK]  %s   \n' "$desc"
   elif [ "$rc" -eq 124 ]; then
-    printf "\r\033[1G\033[K[TIMEOUT] %s (超过 ${to}s)   \n" "$desc"
+    printf '\r\033[2K[TIMEOUT] %s (超过 ${to}s)   \n' "$desc"
     warn "该步骤超时。如需更长等待，设 SPIN_TIMEOUT 后重试"
   else
-    printf "\r\033[1G\033[K[ERR] %s   \n" "$desc"
+    printf '\r\033[2K[ERR] %s   \n' "$desc"
     warn "错误详情见日志: $LOG_FILE"
   fi
   return "$rc"
