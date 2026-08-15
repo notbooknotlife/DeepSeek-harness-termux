@@ -266,8 +266,9 @@ sharp_wasm_fallback(){
   [ -n "$ver" ] || { warn "sharp 版本读取失败，跳过 WASM 兜底"; return; }
 
   # 已就位：能同时 require 到 wasm32 和 @emnapi 即视为 OK
-  if (cd "$D" && node -e "try{require.resolve('@img/sharp-wasm32');require.resolve('@emnapi/runtime');process.exit(0)}catch(e){process.exit(1)}" 2>/dev/null); then
-    ok "sharp-wasm32 + @emnapi 已就位"
+  # 已就位：sharp 真正可加载(import 成功)才算 OK
+  if (cd "$D" && timeout 30 node --input-type=module -e "await import('sharp').catch(()=>process.exit(1))" >/dev/null 2>&1); then
+    ok "sharp 已就位并可加载"
     return
   fi
 
@@ -279,10 +280,10 @@ sharp_wasm_fallback(){
       return 1
     fi
   fi
-  if (cd "$D" && node -e "try{require.resolve('@img/sharp-wasm32');require.resolve('@emnapi/runtime');process.exit(0)}catch(e){process.exit(1)}" 2>/dev/null); then
-    ok "sharp WASM 兜底就位"
+  if (cd "$D" && timeout 30 node --input-type=module -e "await import('sharp').catch(()=>process.exit(1))" >/dev/null 2>&1); then
+    ok "sharp WASM 兜底就位且可加载"
   else
-    warn "sharp wasm 已装但 require 仍失败(版本/依赖问题)"
+    warn "sharp wasm 已装但仍加载失败(版本/依赖不匹配)"
   fi
 }
 
@@ -351,6 +352,12 @@ manifest(){
 #------ 启动 UI(含手机/局域网访问) ------
 serve(){
   have dsh || { err "dsh 未安装，请先: bash $0 install"; return 1; }
+  # 确保 dsh 启动器是带 --expose-internals 的自定义包装器（HMR 必需）。
+  # npm 装上 @deepseek-ai/dsh 时默认 bin 不带该 flag，会导致 HMR 报错。
+  if ! head -1 "$DSH_BIN" 2>/dev/null | grep -q "expose-internals"; then
+    warn "检测到 dsh 启动器缺少 --expose-internals，重建包装器..."
+    install_launcher
+  fi
   info "启动 DSH Web UI: $LANG_HOST:$LANG_PORT"
   echo "--------------------------------------------------------------"
   echo "  本机访问:      http://127.0.0.1:$LANG_PORT"
