@@ -78,12 +78,17 @@ cmd_uninstall(){
   case "$c2" in
     5)
       echo "执行卸载..."
+      # ① 停运行中的进程 + 删本体/命令/还原.npmrc
       [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
-      # 完全(全局)卸载：连配置/会话一起清掉
+      # ② 清工作区/配置/会话/手机端资源/menu脚本
       rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
+      # ③ 清 .bashrc 里 dsh 菜单的 source 行(防下次打开报 source: no such file)
+      if [ -f "$HOME/.bashrc" ]; then
+        sed -i '/dshrc.sh/d' "$HOME/.bashrc" 2>/dev/null || true
+      fi
       echo
-      echo "${C_GRN}✅ 已完全卸载 DSH(含配置/会话 ~/.dsh)。${C_RST}"
-      echo "菜单脚本已随 ~/.dsh 移除，返回初始界面。"
+      echo "${C_GRN}✅ 已完全卸载 DSH(本体/命令/工作区/~/.dsh-mobile/菜单+ .bashrc 引用已清)。${C_RST}"
+      echo "npm 全局包(pnpm 等)已保留。返回初始界面。"
       echo
       exit 0   # 退出菜单(回到 Termux 提示符)
       ;;
