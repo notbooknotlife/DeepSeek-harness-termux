@@ -78,20 +78,26 @@ ensure_log(){ : > "$LOG_FILE"; }
 spin_run(){
   local desc="$1"; shift
   local chars='/-\|' i=0 rc=0
-  # 后台执行（输出进日志，不刷屏）
-  ( "$@" >>"$LOG_FILE" 2>&1 ) &
+  # 超时兜底(默认15分钟，可用 SPIN_TIMEOUT 覆盖)，防命令卡死无限转圈
+  local to="${SPIN_TIMEOUT:-900}"
+  # 后台执行(输出进日志，不刷屏)；用 timeout 包住防卡死
+  ( timeout "$to" "$@" >>"$LOG_FILE" 2>&1 ) &
   local pid=$!
-  # 前台转圈
+  # 前台转圈：进程在就转
   while kill -0 "$pid" 2>/dev/null; do
     printf "\r[%s]  %s ..." "${chars:((i++%4)):1}" "$desc"
     sleep 0.15
   done
   wait "$pid"; rc=$?
-  # 结束：固定打勾或打叉
+  # 结束：固定打勾/打叉/超时
   if [ "$rc" -eq 0 ]; then
     printf "\r[OK]  %s   \n" "$desc"
+  elif [ "$rc" -eq 124 ]; then
+    printf "\r[TIMEOUT] %s (超过 ${to}s)   \n" "$desc"
+    warn "该步骤超时。如需更长等待，设 SPIN_TIMEOUT 后重试"
   else
     printf "\r[ERR] %s   \n" "$desc"
+    warn "错误详情见日志: $LOG_FILE"
   fi
   return "$rc"
 }
