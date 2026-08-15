@@ -435,7 +435,6 @@ function dsh {
     command dsh "\$@"
   fi
 }
-SHEOF
 
   # 往 ~/.bashrc 加 source(幂等)
   local BASHRC="$HOME_DIR/.bashrc"
