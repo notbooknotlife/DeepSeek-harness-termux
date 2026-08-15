@@ -261,21 +261,29 @@ PY
 
 #------ sharp WASM 兜底(sharp 无 android-arm64 预编译) ------
 sharp_wasm_fallback(){
+  # sharp 在 android-arm64 无原生二进制，必须装 wasm 版(@img/sharp-wasm32 + @emnapi)。
   local ver; ver="$(python3 -c "import json;print(json.load(open('$D/node_modules/sharp/package.json'))['version'])" 2>/dev/null || true)"
   [ -n "$ver" ] || { warn "sharp 版本读取失败，跳过 WASM 兜底"; return; }
-  if [ -d "$D/node_modules/@img/sharp-wasm32" ] && ls "$D"/node_modules/@img/sharp-wasm32/lib/*.wasm >/dev/null 2>&1; then
-    ok "sharp-wasm32 已就位"; return; fi
-  local sw="$HOME/.dsh-termux-sw"; rm -rf "$sw"; mkdir -p "$sw"; cd "$sw"
-  info "安装 sharp@$ver WASM 兜底(@img/sharp-wasm32) ..."
-  if ! npm install --no-save --no-audit --no-fund "@img/sharp-wasm32@$ver" >>"$LOG_FILE" 2>&1; then
-    npm install --no-save --no-audit --no-fund --registry="$MIRROR" "@img/sharp-wasm32@$ver" >>"$LOG_FILE" 2>&1 || { cd "$HOME"; rm -rf "$sw"; err "sharp-wasm32 安装失败"; return; }
+
+  # 已就位：能同时 require 到 wasm32 和 @emnapi 即视为 OK
+  if (cd "$D" && node -e "try{require.resolve('@img/sharp-wasm32');require.resolve('@emnapi/runtime');process.exit(0)}catch(e){process.exit(1)}" 2>/dev/null); then
+    ok "sharp-wasm32 + @emnapi 已就位"
+    return
   fi
-  if [ -d node_modules/@img/sharp-wasm32 ]; then
-    rm -rf "$D/node_modules/@img/sharp-wasm32" "$D/node_modules/@emnapi"; mkdir -p "$D/node_modules/@img"
-    cp -r node_modules/@img/sharp-wasm32 "$D/node_modules/@img/"
-    [ -d node_modules/@emnapi ] && cp -r node_modules/@emnapi "$D/node_modules/"
-    cd "$HOME"; rm -rf "$sw"; ok "sharp WASM 兜底已就位"
-  else cd "$HOME"; rm -rf "$sw"; warn "sharp-wasm32 安装结果异常"; fi
+
+  info "安装 sharp@$ver WASM 兜底(@img/sharp-wasm32 + @emnapi/runtime)..."
+  if ! (cd "$D" && npm install --no-save --no-audit --no-fund "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
+    warn "官方源装 wasm 失败，改用 npmmirror 重试"
+    if ! (cd "$D" && npm install --no-save --no-audit --no-fund --registry="$MIRROR" "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
+      err "sharp wasm 兜底安装失败(仍缺 sharp 运行时)，日志见 $LOG_FILE"
+      return 1
+    fi
+  fi
+  if (cd "$D" && node -e "try{require.resolve('@img/sharp-wasm32');require.resolve('@emnapi/runtime');process.exit(0)}catch(e){process.exit(1)}" 2>/dev/null); then
+    ok "sharp WASM 兜底就位"
+  else
+    warn "sharp wasm 已装但 require 仍失败(版本/依赖问题)"
+  fi
 }
 
 #------ dsh 启动包装器(--expose-internals) ------
