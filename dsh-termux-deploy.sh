@@ -71,6 +71,32 @@ err(){  log "[ERR] $*"; }
 
 ensure_log(){ : > "$LOG_FILE"; }
 
+# ============ 动态加载（转圈）工具 ============
+# spin_run "<描述>" <命令...>
+#   把命令放后台执行，前台每0.15s刷新一个旋转字符，结束后固定打勾/打叉。
+#   命令输出进 $LOG_FILE（避免刷屏）；返回命令的真实退出码。
+spin_run(){
+  local desc="$1"; shift
+  local chars='/-\|' i=0 rc=0
+  # 后台执行（输出进日志，不刷屏）
+  ( "$@" >>"$LOG_FILE" 2>&1 ) &
+  local pid=$!
+  # 前台转圈
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r[%s]  %s ..." "${chars:((i++%4)):1}" "$desc"
+    sleep 0.15
+  done
+  wait "$pid"; rc=$?
+  # 结束：固定打勾或打叉
+  if [ "$rc" -eq 0 ]; then
+    printf "\r[OK]  %s   \n" "$desc"
+  else
+    printf "\r[ERR] %s   \n" "$desc"
+  fi
+  return "$rc"
+}
+
+
 #------------------------------ 环境与自检 ------------------------------------
 doctor(){
   info "== 环境自检 =="
@@ -125,11 +151,8 @@ ensure_tools(){
 
   # 缺依赖才安装；脚本不执行 pkg update/upgrade（交由用户自行保证 Termux 索引正常）。
   if [ -n "$need$lib_need" ]; then
-    info "安装缺失依赖:$need $lib_need"
-    if ! pkg install -y $need $lib_need >>"$LOG_FILE" 2>&1; then
-      warn "pkg install 失败。若报索引/依赖错误，请先手动执行: pkg update && pkg upgrade"
-      err "然后重新运行本脚本。日志见 $LOG_FILE"
-    fi
+    spin_run "正在下载并安装依赖: $need$lib_need" pkg install -y $need $lib_need       || { warn "pkg install 失败。若报索引/依赖错误，请先手动执行: pkg update && pkg upgrade"
+           err "然后重新运行本脚本。日志见 $LOG_FILE"; }
   else
     ok "依赖工具与库已齐(无需 pkg 操作)"
   fi
@@ -137,12 +160,14 @@ ensure_tools(){
 
 ensure_node_gyp(){
   have node-gyp && { ok "node-gyp 已存在"; return; }
-  info "npm install -g node-gyp ..."
-  npm install -g node-gyp >>"$LOG_FILE" 2>&1 || warn "node-gyp 装失败(可忽略)"
+  spin_run "正在下载并安装 node-gyp" npm install -g node-gyp     || warn "node-gyp 装失败(可忽略)"
 }
 
 ensure_pnpm(){
-  have pnpm && ok "pnpm 已存在" || { info "npm install -g pnpm ..."; npm install -g pnpm >>"$LOG_FILE" 2>&1 || warn "pnpm 装失败"; }
+  if have pnpm; then ok "pnpm 已存在"
+  else
+    spin_run "正在下载并安装 pnpm" npm install -g pnpm || warn "pnpm 装失败"
+  fi
 }
 
 #------------------------------ 硬核适配：native 编译 --------------------------
@@ -199,10 +224,10 @@ install(){
   info "全局安装 $DSH_PKG（约 5~15 分钟，下载期无输出属正常）... "
   export CFLAGS="-target $TARGET"; export CXXFLAGS="-target $TARGET"
   export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
-  if ! npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG"; then
+  if ! spin_run "正在下载并安装 DSH(下载+编译 koffi/node-pty)" npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG"; then
     warn "首次安装失败，补 common.gypi 后重试一次"
     patch_common_gypi
-    npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG" \
+    spin_run "重试安装 DSH" npm install -g --prefer-offline --foreground-scripts --no-audit --no-fund "$DSH_PKG" \
       || { err "DSH 安装失败，见 $LOG_FILE"; unset CFLAGS CXXFLAGS CMAKE_BUILD_PARALLEL_LEVEL; return 1; }
   fi
   unset CFLAGS CXXFLAGS CMAKE_BUILD_PARALLEL_LEVEL
@@ -229,6 +254,19 @@ install(){
   # --- H. 逐项验证(DSH 最终真正可用) ---
   verify
   manifest
+
+  # --- I. 显示默认网址并询问是否启动 ---
+  echo
+  echo "  默认访问网址: http://127.0.0.1:${LANG_PORT}"
+  if [ -t 0 ]; then
+    read -rp "  是否立即启动 DSH Web? (y/n): " yn
+    case "$yn" in
+      y|Y|yes|Yes) serve ;;
+      *) info "如需启动请运行: dsh web  或  bash $0 serve" ;;
+    esac
+  else
+    info "如需启动请运行: dsh web  或  bash $0 serve"
+  fi
 }
 
 #------ link→rename 补丁(部分 ROM 禁 link 致 EACCES) ------
@@ -270,11 +308,10 @@ ensure_sharp_wasm(){
   local ver; ver="$(python3 -c "import json;print(json.load(open('$D/node_modules/sharp/package.json'))['version'])" 2>/dev/null || true)"
   [ -n "$ver" ] || { warn "sharp 版本读取失败，跳过 sharp wasm 安装"; return; }
 
-  info "安装 sharp@$ver WASM 运行时(@img/sharp-wasm32 + @emnapi/runtime)..."
-  if ! (cd "$D" && npm install --no-save --no-audit --no-fund "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
+  if ! spin_run "正在安装 sharp@$ver 图像处理(wasm)" bash -c "cd '$D' && npm install --no-save --no-audit --no-fund '@img/sharp-wasm32@$ver' '@emnapi/runtime'"; then
     warn "官方源装 wasm 失败，改用 npmmirror 重试"
-    if ! (cd "$D" && npm install --no-save --no-audit --no-fund --registry="$MIRROR" "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
-      err "sharp wasm 运行时安装失败(反正仍缺 sharp)，日志见 $LOG_FILE"
+    if ! spin_run "重试安装 sharp(国内镜像)" bash -c "cd '$D' && npm install --no-save --no-audit --no-fund --registry='$MIRROR' '@img/sharp-wasm32@$ver' '@emnapi/runtime'"; then
+      err "sharp wasm 运行时安装失败(仍缺 sharp)，日志见 $LOG_FILE"
       return 1
     fi
   fi
