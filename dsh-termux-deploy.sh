@@ -38,6 +38,8 @@ EXPECTED_SHA256="${EXPECTED_SHA256:-}"
 LANG_HOST="${DSH_HOST:-127.0.0.1}"
 LANG_PORT="${DSH_PORT:-3080}"
 MOBILE_DIR="$HOME_DIR/.dsh-mobile"   # 手机端 UI 适配资源（本地可编辑）
+RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com/notbooknotlife/DeepSeek-harness-termux/main}" # 仓库 raw 地址(自包含下载用)
+MENU_DIR="$HOME_DIR/.dsh"                    # dsh 菜单资源放这里
 # 脚本目录：兼容「直接运行」与「curl|bash 以 stdin 执行」两种情况。
 # stdin 执行时 BASH_SOURCE[0]/$0 可能为空或不可用 → 安全降级，不因 set -u 崩溃。
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || printf '%s' "$HOME")"
@@ -250,6 +252,7 @@ install(){
   info "配置 Termux 工作区与手机端资源..."
   setup_workspace
   install_mobile
+  install_shellmenu
 
   # --- H. 逐项验证(DSH 最终真正可用) ---
   verify
@@ -355,20 +358,60 @@ EOF
 # 用户可直接编辑这些文件。
 install_mobile(){
   mkdir -p "$MOBILE_DIR"
-  # 优先从仓库 mobile/ 目录拷贝最新文件（保证与发布内容一致）
-  if [ -d "$REPO_MOBILE" ]; then
-    cp -f "$REPO_MOBILE/mobile.css"            "$MOBILE_DIR/mobile.css" 2>/dev/null || true
+  # 优先从仓库本地 mobile/ 复制；否则从 GitHub raw 下载(自包含，不依赖 clone)。
+  if [ -d "$REPO_MOBILE" ] && [ -f "$REPO_MOBILE/mobile.css" ]; then
+    cp -f "$REPO_MOBILE/mobile.css"                 "$MOBILE_DIR/mobile.css" 2>/dev/null || true
     cp -f "$REPO_MOBILE/dsh-setting-mobile.user.js" "$MOBILE_DIR/dsh-mobile.user.js" 2>/dev/null || true
-    cp -f "$REPO_MOBILE/bookmarklet.txt"       "$MOBILE_DIR/bookmarklet.txt" 2>/dev/null || true
+    cp -f "$REPO_MOBILE/bookmarklet.txt"            "$MOBILE_DIR/bookmarklet.txt" 2>/dev/null || true
     touch "$MOBILE_DIR/.dsh-mobile-inited"
-    ok "手机端 UI 适配资源已安装(来自仓库 mobile/): $MOBILE_DIR"
+    ok "手机端 UI 适配资源已安装(来自仓库): $MOBILE_DIR"
   else
-    warn "未找到仓库 mobile/ 目录($REPO_MOBILE)，跳过手机端资源安装(可选步骤，不影响使用)"
-    # 不 return 非0，避免 set -e 中断 install 后续(verify/询问启动)
+    info "从 GitHub 下载手机端 UI 适配资源到 $MOBILE_DIR ..."
+    curl -fsSL --max-time 20 "$RAW_BASE/mobile/mobile.css"            -o "$MOBILE_DIR/mobile.css" 2>/dev/null || true
+    curl -fsSL --max-time 20 "$RAW_BASE/mobile/dsh-setting-mobile.user.js" -o "$MOBILE_DIR/dsh-mobile.user.js" 2>/dev/null || true
+    curl -fsSL --max-time 20 "$RAW_BASE/mobile/bookmarklet.txt"       -o "$MOBILE_DIR/bookmarklet.txt" 2>/dev/null || true
+    if [ -s "$MOBILE_DIR/mobile.css" ]; then
+      touch "$MOBILE_DIR/.dsh-mobile-inited"
+      ok "手机端 UI 适配资源已下载: $MOBILE_DIR"
+    else
+      warn "手机端适配资源下载失败(可选，不影响 DSH 使用)"
+    fi
   fi
   info "  · $MOBILE_DIR/mobile.css          核心样式(可编辑)"
   info "  · $MOBILE_DIR/dsh-mobile.user.js  浏览器扩展自动注入"
   info "  · $MOBILE_DIR/bookmarklet.txt     无扩展浏览器书签注入"
+}
+
+# ============ dsh 菜单集成(dshmenu.sh + dshrc.sh + .bashrc) ============
+# 目的：让 \`dsh\`(无参数)弹出交互菜单；\`dsh 参数\`仍走原生 dsh。
+# 资源放 $MENU_DIR(=~/.dsh)，并往 ~/.bashrc 加入 source（幂等，不重复添加）。
+install_shellmenu(){
+  mkdir -p "$MENU_DIR"
+  info "配置 dsh 控制菜单(dshmenu.sh / dshrc.sh) ..."
+  # 从仓库复制或 GitHub 下载 dshmenu.sh
+  if [ -f "$SCRIPT_DIR/dshmenu.sh" ]; then
+    cp -f "$SCRIPT_DIR/dshmenu.sh" "$MENU_DIR/dshmenu.sh" 2>/dev/null || true
+  else
+    curl -fsSL --max-time 20 "$RAW_BASE/dshmenu.sh" -o "$MENU_DIR/dshmenu.sh" 2>/dev/null || true
+  fi
+  if [ -f "$SCRIPT_DIR/dshrc.sh" ]; then
+    cp -f "$SCRIPT_DIR/dshrc.sh" "$MENU_DIR/dshrc.sh" 2>/dev/null || true
+  else
+    curl -fsSL --max-time 20 "$RAW_BASE/dshrc.sh" -o "$MENU_DIR/dshrc.sh" 2>/dev/null || true
+  fi
+  # 让 dshrc.sh 指向 ~/.dsh(菜单实际位置)，不依赖具体 clone 路径
+  sed -i "s|DSH_PROJECT_DIR="\${DSH_PROJECT_DIR:-\$HOME/storage/dsh-src}"|DSH_PROJECT_DIR="\${DSH_PROJECT_DIR:-\$HOME/.dsh}"|" "$MENU_DIR/dshrc.sh" 2>/dev/null || true
+
+  # 往 ~/.bashrc 加 source(幂等)
+  local BASHRC="$HOME_DIR/.bashrc"
+  if grep -q "dshrc.sh" "$BASHRC" 2>/dev/null; then
+    ok "~/.bashrc 已有 dsh 菜单引用"
+  else
+    printf '\n# dsh 控制菜单(dsh 无参弹菜单;带参数走原生)\nsource %s/dshrc.sh\n' "$MENU_DIR" >> "$BASHRC"
+    ok "已在 ~/.bashrc 启用 dsh 菜单"
+  fi
+  chmod +x "$MENU_DIR/dshmenu.sh" 2>/dev/null || true
+  ok "dsh 菜单就绪: 新开 Termux 后输入 'dsh' 弹出菜单(dshmenu)"
 }
 
 #------ 逐项验证 ------
