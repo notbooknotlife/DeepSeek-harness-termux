@@ -80,9 +80,14 @@ cmd_uninstall(){
     [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
     # 完全(全局)卸载：连配置/会话一起清掉
     rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
-    echo "${C_GRN}已完全卸载(含 ~/.dsh)。${C_RST}"
+    echo
+    echo "${C_GRN}✅ 已完全卸载 DSH(含配置/会话 ~/.dsh)。${C_RST}"
+    echo "菜单脚本已随 ~/.dsh 移除，返回初始界面。"
+    echo
+    exit 0   # 退出菜单(回到 Termux 提示符)
   else
     echo "${C_YEL}已取消卸载。${C_RST}"
+    echo; read -rp "按回车返回菜单..." _
   fi
 }
 
@@ -113,9 +118,8 @@ while :; do
       echo "→ 查看状态"
       cmd_status
       echo; read -rp "按回车返回菜单..." _;;
-    5)  # 完全卸载(双重确认后返回菜单)
-      cmd_uninstall
-      echo; read -rp "按回车返回菜单..." _;;
+    5)  # 完全卸载: 确认后卸载并退出菜单; 取消则回车返回
+      cmd_uninstall;;
     0|q|quit)
       echo "退出。"; break;;
     *)
