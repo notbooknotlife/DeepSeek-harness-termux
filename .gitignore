@@ -1,0 +1,9 @@
+# 本地日志与临时文件
+*.log
+*.tmp
+.dsh_deploy.log
+.dsh-mobile-inited
+
+# 用户配置（含凭据，不要提交）
+.dsh/
+*.bak
