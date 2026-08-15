@@ -359,8 +359,8 @@ install_mobile(){
     touch "$MOBILE_DIR/.dsh-mobile-inited"
     ok "手机端 UI 适配资源已安装(来自仓库 mobile/): $MOBILE_DIR"
   else
-    warn "未找到仓库 mobile/ 目录($REPO_MOBILE)，跳过手机端资源安装"
-    return 1
+    warn "未找到仓库 mobile/ 目录($REPO_MOBILE)，跳过手机端资源安装(可选步骤，不影响使用)"
+    # 不 return 非0，避免 set -e 中断 install 后续(verify/询问启动)
   fi
   info "  · $MOBILE_DIR/mobile.css          核心样式(可编辑)"
   info "  · $MOBILE_DIR/dsh-mobile.user.js  浏览器扩展自动注入"
