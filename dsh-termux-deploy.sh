@@ -73,28 +73,25 @@ ensure_log(){ : > "$LOG_FILE"; }
 #   把命令放后台执行，前台每0.15s刷新一个旋转字符，结束后固定打勾/打叉。
 #   命令输出进 $LOG_FILE（避免刷屏）；返回命令的真实退出码。
 spin_run(){
+  # 静态提示版：显示一行"xxx 正在下载中..."，执行完显示结果。
+  # 不做转圈/控制字符，任何终端、任何查看方式都正常显示。
   local desc="$1"; shift
-  local chars='/-\|' i=0 rc=0
-  # 超时兜底(默认15分钟，可用 SPIN_TIMEOUT 覆盖)，防命令卡死无限转圈
+  local rc=0
   local to="${SPIN_TIMEOUT:-900}"
-  # 后台执行(输出进日志，不刷屏)；用 timeout 包住防卡死
+  info "$desc ... 正在下载中"
+  # 后台执行(输出进日志，不刷屏)；timeout 防卡死
   ( timeout "$to" "$@" >>"$LOG_FILE" 2>&1 ) &
   local pid=$!
-  # 前台转圈：进程在就转。用 \r\033[2K 清整行原地刷新(已验证 Termux 支持)
-  while kill -0 "$pid" 2>/dev/null; do
-    printf '\r\033[2K[%s]  %s ...' "${chars:$((i%4)):1}" "${desc:0:40}"
-    i=$((i+1)); sleep 0.12
-  done
+  # 等待完成(不显示/无动效)
+  while kill -0 "$pid" 2>/dev/null; do sleep 0.3; done
   wait "$pid"; rc=$?
-  # 结束：固定打勾/打叉/超时
+  # 结果
   if [ "$rc" -eq 0 ]; then
-    printf '\r\033[2K[OK]  %s   \n' "$desc"
+    ok "$desc 完成"
   elif [ "$rc" -eq 124 ]; then
-    printf '\r\033[2K[TIMEOUT] %s (超过 ${to}s)   \n' "$desc"
-    warn "该步骤超时。如需更长等待，设 SPIN_TIMEOUT 后重试"
+    warn "$desc 超时(超过 ${to}s)。如需更长等待，设 SPIN_TIMEOUT 后重试"
   else
-    printf '\r\033[2K[ERR] %s   \n' "$desc"
-    warn "错误详情见日志: $LOG_FILE"
+    err "$desc 失败。错误详情见日志: $LOG_FILE"
   fi
   return "$rc"
 }
