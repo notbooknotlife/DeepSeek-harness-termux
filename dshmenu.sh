@@ -35,6 +35,36 @@ ask_port(){
 
 cmd_status(){ bash "$DEPLOY_SCRIPT" status; }
 
+# 后台启动 dsh web + 自动开浏览器，然后等回车返回菜单
+launch_dsh(){
+  # mode=persist 常驻(输入1)；mode=test 启动后验证端口即关闭(输入2/3)
+  local host="$1" port="$2" mode="${3:-persist}"
+  # 常驻模式: 若已在运行则不重复启动
+  if command -v pgrep >/dev/null 2>&1 && pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1; then
+    echo "${C_YEL}已有 dsh web 在运行。${C_RST}"
+  else
+    nohup dsh web --host "$host" --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 &
+    sleep 3   # 等端口起来
+  fi
+  echo "  本机访问:      http://127.0.0.1:$port"
+  local lanip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{if=$1}/inet /{print if,$2}' | awk '$1~/^wlan/{print $2;exit}' | cut -d: -f2)
+  [ -z "$lanip" ] && lanip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{if=$1}/inet /{print if,$2}' | grep -vE '^(lo|docker|tun|virbr)' | awk '{print $2;exit}' | cut -d: -f2)
+  [ -n "$lanip" ] && echo "  局域网设备访问: http://$lanip:$port"
+
+  if [ "$mode" = "persist" ]; then
+    # 常驻: 提示服务保持运行
+    command -v termux-open-url >/dev/null 2>&1 && { (termux-open-url "http://127.0.0.1:$port" >/dev/null 2>&1 &); }
+    echo "${C_GRN}（1）已启动并常驻。可在浏览器使用 http://127.0.0.1:$port${C_RST}"
+  else
+    # 测试模式(2/3): 关闭已启动的端口，仅验证可用
+    if command -v pgrep >/dev/null 2>&1; then
+      pkill -f "dsh/lib/bin.js" 2>/dev/null
+    fi
+    echo "${C_YEL}（测试）本次端口已验证(短暂启动后已关闭)。需长期用到启动(1)。${C_RST}"
+  fi
+  echo; read -rp "按回车返回菜单..." _
+}
+
 cmd_uninstall(){
   echo
   echo "${C_RED}⚠  即将完全卸载 DSH(全局，含会话/配置 ~/.dsh)${C_RST}"
@@ -53,27 +83,31 @@ cmd_uninstall(){
 # ---- 主循环 ----
 while :; do
   menu_banner
-  read -rp "请输入数字: " opt
+  read -rp "请输入数字(0=退出): " opt
   case "$opt" in
-    1)
-      echo "→ 启动: dsh web"
-      dsh web
-      break;;
-    2)
-      port=$(ask_port)
-      echo "→ 启动: dsh web --port $port"
-      dsh web --port "$port"
-      break;;
-    3)
-      port=$(ask_port)
-      echo "→ 启动: dsh web --host 0.0.0.0 --port $port"
-      dsh web --host 0.0.0.0 --port "$port"
-      break;;
-    4)
+    1)  # 直接启动(本机,默认3080) —— 常驻
+      launch_dsh "127.0.0.1" 3080 persist;;
+    2)  # 自定义端口: 提示输端口,输0=返回上一层重来
+      while :; do
+        echo "（局域网/本机启动）"; read -rp "请输入端口(0=返回上一级): " port
+        if [ "$port" = "0" ]; then echo "已返回菜单。"; break; fi
+        if [ -z "$port" ]; then port=3080; fi
+        launch_dsh "127.0.0.1" "$port" test   # 测试后关端口
+        break
+      done;;
+    3)  # 局域网启动: 输端口,输0返回
+      while :; do
+        read -rp "请输入端口(0=返回上一级,默认3080): " port
+        if [ "$port" = "0" ]; then echo "已返回菜单。"; break; fi
+        if [ -z "$port" ]; then port=3080; fi
+        launch_dsh "0.0.0.0" "$port" test   # 测试后关端口
+        break
+      done;;
+    4)  # 查看状态(保持原样,回车返回)
       echo "→ 查看状态"
       cmd_status
       echo; read -rp "按回车返回菜单..." _;;
-    5)
+    5)  # 完全卸载(双重确认后返回菜单)
       cmd_uninstall
       echo; read -rp "按回车返回菜单..." _;;
     0|q|quit)
