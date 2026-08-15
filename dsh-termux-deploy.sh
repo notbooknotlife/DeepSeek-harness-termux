@@ -208,10 +208,13 @@ install(){
   have dsh || { err "npm 装完仍未找到 dsh 命令"; return 1; }
   ok "DSH 本体已就位: $(command -v dsh)"
 
-  # --- E. 打 Termux 硬核补丁(依赖 DSH 包文件存在，故在 D 之后) ---
-  info "应用 Termux 补丁(link→rename / sharp wasm)..."
+  # --- D2. 顺便装 sharp WASM 运行时(DSH 在 android 无原生 sharp, 必须补) ---
+  # 与 D 同一次安装流程内一步到位，避免单独补装阶段。
+  ensure_sharp_wasm
+
+  # --- E. 打 Termux 硬核补丁(link→rename) ---
+  info "应用 Termux 补丁(link→rename)..."
   patch_link_rename
-  sharp_wasm_fallback
 
   # --- F. 启动包装器(--expose-internals, HMR 必需) ---
   info "安装启动包装器..."
@@ -260,28 +263,22 @@ PY
 }
 
 #------ sharp WASM 兜底(sharp 无 android-arm64 预编译) ------
-sharp_wasm_fallback(){
+ensure_sharp_wasm(){
   # sharp 在 android-arm64 无原生二进制，必须装 wasm 版(@img/sharp-wasm32 + @emnapi)。
+  # 随 D 阶段同流程直接装（不等到缺了再补）。
   local ver; ver="$(python3 -c "import json;print(json.load(open('$D/node_modules/sharp/package.json'))['version'])" 2>/dev/null || true)"
-  [ -n "$ver" ] || { warn "sharp 版本读取失败，跳过 WASM 兜底"; return; }
+  [ -n "$ver" ] || { warn "sharp 版本读取失败，跳过 sharp wasm 安装"; return; }
 
-  # 已就位：能同时 require 到 wasm32 和 @emnapi 即视为 OK
-  # 已就位：sharp 真正可加载(import 成功)才算 OK
-  if (cd "$D" && timeout 30 node --input-type=module -e "await import('sharp').catch(()=>process.exit(1))" >/dev/null 2>&1); then
-    ok "sharp 已就位并可加载"
-    return
-  fi
-
-  info "安装 sharp@$ver WASM 兜底(@img/sharp-wasm32 + @emnapi/runtime)..."
+  info "安装 sharp@$ver WASM 运行时(@img/sharp-wasm32 + @emnapi/runtime)..."
   if ! (cd "$D" && npm install --no-save --no-audit --no-fund "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
     warn "官方源装 wasm 失败，改用 npmmirror 重试"
     if ! (cd "$D" && npm install --no-save --no-audit --no-fund --registry="$MIRROR" "@img/sharp-wasm32@$ver" "@emnapi/runtime" >>"$LOG_FILE" 2>&1); then
-      err "sharp wasm 兜底安装失败(仍缺 sharp 运行时)，日志见 $LOG_FILE"
+      err "sharp wasm 运行时安装失败(反正仍缺 sharp)，日志见 $LOG_FILE"
       return 1
     fi
   fi
   if (cd "$D" && timeout 30 node --input-type=module -e "await import('sharp').catch(()=>process.exit(1))" >/dev/null 2>&1); then
-    ok "sharp WASM 兜底就位且可加载"
+    ok "sharp(wasm) 已就位并可加载"
   else
     warn "sharp wasm 已装但仍加载失败(版本/依赖不匹配)"
   fi

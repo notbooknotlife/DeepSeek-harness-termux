@@ -70,7 +70,7 @@ dsh web
 | `BASH_SOURCE[0]: unbound variable` | `curl \| bash` 经 stdin 执行时机目录为空 | `SCRIPT_DIR` 安全降级 |
 | 一键只显示 usage、不装 | bootstrap 命令参数(`$0`)没透传 | 修复 bootstrap 参数透传 |
 | `koffi: 'spawn.h' file not found` | 缺 `libandroid-support` 头文件 | `ensure_tools` 用 `dpkg -s` 补装库依赖 |
-| `Could not load "sharp" ... android-arm64` | sharp 无 android 原生产物 | `sharp_wasm_fallback` 装 wasm32+emnapi 并 `import('sharp')` 验证 |
+| `Could not load "sharp" ... android-arm64` | sharp 无 android 原生产物 | 随 D 阶段直接装 wasm32+emnapi 并 `import('sharp')` 验证 |
 | `--expose-internals is required for HMR` | npm 默认 bin 不带该 flag | `install_launcher` 写带 flag 包装器，`serve` 启动前自检重建 |
 | 会话保存 `EACCES link()` | 部分 ROM 禁用 link() 系统调用 | `patch_link_rename` 改 `rename()` |
 
@@ -129,7 +129,7 @@ sha256sum dsh-termux-deploy.sh
 
 ## 开发 / 贡献
 
-- **模块化**：每个功能一个函数（`doctor`/`ensure_tools`/`npm 安装`/`patch_*`/`sharp_wasm_fallback`/`install_launcher`/`setup_sdcard`/`verify`/`serve`）。
+- **模块化**：每个功能一个函数（`doctor`/`ensure_tools`/`npm 安装`/`ensure_sharp_wasm`/`patch_*`/`install_launcher`/`setup_sdcard`/`verify`/`serve`）。
 - **配置区**：脚本顶部集中路径/端口/仓库地址，改这里调行为。
 - **子命令**：底部 `case "$COMMAND"` 统一路由。
 
