@@ -11,14 +11,13 @@
 #      doctor/status/serve/uninstall 子命令、SHA256自校验。
 #
 #  用法：
-#   bash dsh-termux-deploy.sh install [--skip-upgrade] [--cn]   安装(缺啥补啥)
+#   bash dsh-termux-deploy.sh install [--cn]   安装(缺啥补啥)
 #   bash dsh-termux-deploy.sh serve [--host 0.0.0.0] [--port 3080]  启动UI
 #   bash dsh-termux-deploy.sh doctor         环境自检
 #   bash dsh-termux-deploy.sh status         服务/进程状态
 #   bash dsh-termux-deploy.sh uninstall      卸载并还原 .npmrc
 #
 #  --cn   使用 npmmirror 镜像(中国大陆网络)
-#  --skip-upgrade  跳过 pkg 相关操作（脚本默认不执行 pkg update/upgrade，由用户自行维护）
 #===============================================================================
 set -euo pipefail
 
@@ -45,15 +44,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || prin
 REPO_MOBILE="$SCRIPT_DIR/mobile"     # 仓库内手机端适配资源(单一来源)
 
 CN_MODE=0
-SKIP_UPGRADE=0
-# 解析通用 flag(--host/--port 放在子命令前) 与子命令 flag(--cn/--skip-upgrade 在 install 后)
+# 解析通用 flag(--host/--port 放在子命令前) 与子命令 flag(--cn 在 install 后)
 ARGS_HOST=""; ARGS_PORT=""; POSITIONAL=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) ARGS_HOST="$2"; shift 2 ;;
     --port) ARGS_PORT="$2"; shift 2 ;;
     --cn) CN_MODE=1; shift ;;
-    --skip-upgrade) SKIP_UPGRADE=1; shift ;;
     *) POSITIONAL="$POSITIONAL $1"; shift ;;
   esac
 done
@@ -433,7 +430,7 @@ case "$COMMAND" in
   mobile)     info "重置手机端适配资源到默认并覆盖本地修改..."; install_mobile ;;
   help|--help|-h)
     echo "用法: bash $0 <命令> [--host ip] [--port 端口]"
-    echo "  install [--skip-upgrade] [--cn]   完整安装(缺啥补啥，快；--skip-upgrade 连pkg索引刷新也跳过)"
+    echo "  install [--cn]   完整安装(缺啥补啥，快)"
     echo "  serve   [--host 0.0.0.0] [--port] 启动Web UI"
     echo "  mobile                            (重)生成手机端UI适配资源到 ~/.dsh-mobile"
     echo "  doctor                            环境自检"
