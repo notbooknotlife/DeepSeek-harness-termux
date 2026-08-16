@@ -36,6 +36,18 @@ ask_port(){
 cmd_status(){ bash "$DEPLOY_SCRIPT" status; }
 
 # 后台启动 dsh web + 自动开浏览器，然后等回车返回菜单
+# 启动 dsh 时自动挂上持续监控器(诊断"过段时间失效"), 无需任何额外操作
+auto_monitor(){
+  # 定位监控器: 优先诊断目录, 回退仓库 diagnose/
+  local mon
+  for m in "$DSH_MONITOR" "$HOME/storage/dsh-src/diagnose/dsh-monitor.sh" "$HOME/dsh-src/diagnose/dsh-monitor.sh"; do
+    [ -f "$m" ] && { mon="$m"; break; }
+  done
+  if command -v curl >/dev/null 2>&1 && { command -v termux >/dev/null 2>&1; }; then :; fi
+  if [ -n "$mon" ]; then
+    ( bash "$mon" start "${DSH_MONITOR_INTERVAL:-15}" >/dev/null 2>&1 & )
+  fi
+}
 launch_dsh(){
   # mode=persist 常驻(输入1)；mode=test 启动后验证端口即关闭(输入2/3)
   local host="$1" port="$2" mode="${3:-persist}"
@@ -50,6 +62,7 @@ launch_dsh(){
     # 用子 shell：(cd 工作区 && nohup dsh web) —— 让 process.cwd()=工作区，且不影响本菜单 shell
     ( cd "$WS" && nohup dsh web --host "$host" --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
     sleep 3   # 等端口起来
+    auto_monitor   # dsh 已启动 → 自动挂上后台持续监控
   fi
   echo "  本机访问:      http://127.0.0.1:$port"
   local lanip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{if=$1}/inet /{print if,$2}' | awk '$1~/^wlan/{print $2;exit}' | cut -d: -f2)
