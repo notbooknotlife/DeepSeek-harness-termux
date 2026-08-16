@@ -5,8 +5,19 @@
 #  不改动 dsh 本体，仅提供交互式启动/状态/卸载入口。
 # ============================================================
 
-# 部署脚本路径（可改成你 clone 的位置）
-DEPLOY_SCRIPT="${DSH_DEPLOY_SCRIPT:-$HOME/storage/dsh-src/dsh-termux-deploy.sh}"
+# 部署脚本定位：自适应查找, 不依赖固定源码路径。
+# 优先 DSH_DEPLOY_SCRIPT 环境变量; 否则在常见位置找; 找不到则置空(卸载/状态走内置逻辑)。
+DEPLOY_SCRIPT="${DSH_DEPLOY_SCRIPT:-}"
+if [ -z "$DEPLOY_SCRIPT" ] || [ ! -f "$DEPLOY_SCRIPT" ]; then
+  for cand in \
+    "$HOME/.dsh/dsh-termux-deploy.sh" \
+    "$HOME/dsh-termux-deploy.sh" \
+    "$HOME/storage/dsh-src/dsh-termux-deploy.sh" \
+    "$(dirname "$0")/dsh-termux-deploy.sh" \
+    "$(dirname "$0")/../dsh-termux-deploy.sh"; do
+    if [ -f "$cand" ]; then DEPLOY_SCRIPT="$cand"; break; fi
+  done
+fi
 
 # 提示文本颜色
 C_GRN=$'\e[32m'; C_YEL=$'\e[33m'; C_RED=$'\e[31m'; C_CYA=$'\e[36m'; C_RST=$'\e[0m'
@@ -33,14 +44,29 @@ ask_port(){
   echo "$p"
 }
 
-cmd_status(){ bash "$DEPLOY_SCRIPT" status; }
+cmd_status(){
+  if [ -n "$DEPLOY_SCRIPT" ] && [ -f "$DEPLOY_SCRIPT" ]; then
+    bash "$DEPLOY_SCRIPT" status
+  else
+    # 内置状态: 不依赖部署脚本
+    echo "--- dsh 内部状态(未找到部署脚本, 用内置检查) ---"
+    if pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1; then
+      echo "  dsh web 运行中 (PID $(pgrep -f 'dsh/lib/bin.js' | head -1))"
+    else
+      echo "  dsh web 未运行"
+    fi
+    [ -d "$HOME/.dsh" ] && echo "  配置 ~/.dsh 存在" || echo "  配置 ~/.dsh 不存在"
+    D=/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh
+    [ -d "$D" ] && echo "  本体 $D 已安装" || echo "  本体未安装"
+  fi
+}
 
 # 后台启动 dsh web + 自动开浏览器，然后等回车返回菜单
 # 启动 dsh 时自动挂上持续监控器(诊断"过段时间失效"), 无需任何额外操作
 auto_monitor(){
   # 优先脚本环境 ~/.dsh/diagnose/; 回退仓库 diagnose/
   local mon
-  for m in "$DSH_MONITOR" "$HOME/.dsh/diagnose/dsh-diagnose.sh" "$HOME/storage/dsh-src/diagnose/dsh-diagnose.sh" "$(dirname "$0")/diagnose/dsh-diagnose.sh"; do
+  for m in "$DSH_MONITOR" "$HOME/.dsh/diagnose/dsh-diagnose.sh" "$(dirname "$0")/diagnose/dsh-diagnose.sh" "$(dirname "$0")/../diagnose/dsh-diagnose.sh"; do
     [ -f "$m" ] && { mon="$m"; break; }
   done
   if [ -n "$mon" ]; then
@@ -95,13 +121,18 @@ cmd_uninstall(){
   case "$c2" in
     5)
       echo "执行卸载..."
-      # ① 停运行中的进程 + 删本体/命令/还原.npmrc
-      [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
-      # ② 清工作区/配置/会话/手机端资源/menu脚本
+      # ① 停运行中的 dsh 进程
+      command -v pgrep >/dev/null 2>&1 && pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1 && pkill -f "dsh/lib/bin.js" 2>/dev/null || true
+      # ② 直接删 DSH 本体 + 命令(不依赖部署脚本是否存在)
+      local D=/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh
+      local BIN=/data/data/com.termux/files/usr/bin/dsh
+      [ -d "$D" ] && { rm -rf "$D"; echo "  已删本体 $D"; }
+      [ -f "$BIN" ] && { rm -f "$BIN"; echo "  已删命令 $BIN"; }
+      # ③ 清配置/会话/工作区/手机端资源/菜单
       rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
-      # ②.5 清部署残留辅助文件
+      # ④ 清部署残留辅助文件
       rm -f "$HOME/.dsh-bootstrap-installer.sh" "$HOME/.dsh_deploy_manifest.txt" 2>/dev/null || true
-      # ③ 清 .bashrc 里 dsh 菜单的 source 行(防下次打开报 source: no such file)
+      # ⑤ 清 .bashrc 里 dsh 菜单的 source 行
       if [ -f "$HOME/.bashrc" ]; then
         sed -i '/dshrc.sh/d' "$HOME/.bashrc" 2>/dev/null || true
       fi

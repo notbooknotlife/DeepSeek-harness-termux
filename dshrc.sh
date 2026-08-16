@@ -6,8 +6,14 @@
 #    - 新手机 clone 后 source 同目录 dshrc.sh
 # ============================================================
 
-# 项目根（改这里指向实际 clone 位置）
-DSH_PROJECT_DIR="${DSH_PROJECT_DIR:-$HOME/storage/dsh-src}"
+# 项目根：自适应——优先部署环境 ~/.dsh, 否则当前脚本目录。
+# 不依赖固定的 $HOME/storage/dsh-src。
+DSH_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -d "$HOME/.dsh" ] && [ -f "$HOME/.dsh/dshmenu.sh" ]; then
+  DSH_PROJECT_DIR="${DSH_PROJECT_DIR:-$HOME/.dsh}"
+else
+  DSH_PROJECT_DIR="${DSH_PROJECT_DIR:-$DSH_SRC_DIR}"
+fi
 
 # dshmenu 菜单脚本路径
 DSH_MENU_PATH="$DSH_PROJECT_DIR/dshmenu.sh"
