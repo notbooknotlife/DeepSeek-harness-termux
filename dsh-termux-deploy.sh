@@ -499,6 +499,9 @@ uninstall(){
   [ -d "$D" ] && { rm -rf "$D"; ok "删 $D"; }
   [ -f "$DSH_BIN" ] && { rm -f "$DSH_BIN"; ok "删 $DSH_BIN"; }
   if [ -f "$NPMRC_BACKUP" ]; then cp "$NPMRC_BACKUP" "$NPMRC"; ok "还原 .npmrc"; rm -f "$NPMRC_BACKUP"; fi
+  # 清理部署残留的辅助文件
+  [ -f "$HOME_DIR/.dsh-bootstrap-installer.sh" ] && { rm -f "$HOME_DIR/.dsh-bootstrap-installer.sh"; ok "删 $HOME_DIR/.dsh-bootstrap-installer.sh"; } || true
+  [ -f "$HOME_DIR/.dsh_deploy_manifest.txt" ] && { rm -f "$HOME_DIR/.dsh_deploy_manifest.txt"; ok "删 $HOME_DIR/.dsh_deploy_manifest.txt"; } || true
   info "配置 $DSH_CONF_HOME 保留(含会话/凭据)，彻底删除请: rm -rf $DSH_CONF_HOME"
   ok "卸载完成。"
 }

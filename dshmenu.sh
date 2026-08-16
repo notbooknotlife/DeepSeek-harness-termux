@@ -87,6 +87,8 @@ cmd_uninstall(){
       [ -f "$DEPLOY_SCRIPT" ] && bash "$DEPLOY_SCRIPT" uninstall
       # ② 清工作区/配置/会话/手机端资源/menu脚本
       rm -rf "$HOME/.dsh" "$HOME/.dsh-mobile" 2>/dev/null
+      # ②.5 清部署残留辅助文件
+      rm -f "$HOME/.dsh-bootstrap-installer.sh" "$HOME/.dsh_deploy_manifest.txt" 2>/dev/null || true
       # ③ 清 .bashrc 里 dsh 菜单的 source 行(防下次打开报 source: no such file)
       if [ -f "$HOME/.bashrc" ]; then
         sed -i '/dshrc.sh/d' "$HOME/.bashrc" 2>/dev/null || true
