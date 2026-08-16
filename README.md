@@ -25,8 +25,6 @@ pkg update -y && pkg upgrade -y
 
 > **🚀 提速 Tip：`pkg update/upgrade` 太慢或卡住？先换一个国内镜像源再执行。**
 >
-> 国内网络下默认官方源（`packages.termux.dev`）常被限速或超时。**用 Termux 自带的 `termux-change-repo` 换源最不易出错**，不用手动编辑文件：
->
 > ```sh
 > termux-change-repo
 > ```
