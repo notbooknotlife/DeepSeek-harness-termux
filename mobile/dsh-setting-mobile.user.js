@@ -107,6 +107,8 @@
   width: 100% !important;              /* 下拉框撑满整行 */
   max-width: none !important;
   align-self: stretch !important;
+  justify-content: space-between !important;
+}
 
 /* ---- 用户提问问卷(user-questions): 底部"跳过本题/下一题"按钮 窄屏防右缘被裁/遮挡 ---- */
 .Mbwy4a_footer {
