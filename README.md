@@ -181,10 +181,21 @@ DSH 的 Web UI 默认仅绑 `127.0.0.1`；`serve --host 0.0.0.0` 放开供手机
 
 ## 卸载
 
+卸载器就是部署脚本本身（`dsh-termux-deploy.sh`），执行 `uninstall` 子命令。按你脚本所在位置选一条：
+
 ```sh
-bash <脚本> uninstall
+# ① 脚本在本地仓库（clone 源码后）
+bash ~/storage/dsh-src/dsh-termux-deploy.sh uninstall
+
+# ② 没保留脚本，用 Gitee 重新下载一份来卸载
+curl -fsSL https://gitee.com/Zyudgitee/Deepseek-harness-termux/raw/main/dsh-termux-deploy.sh -o ~/dsh-termux-deploy.sh \
+  && bash ~/dsh-termux-deploy.sh uninstall
+
+# ③ 已装 dshmenu 菜单：直接选「5 完全卸载」
+dshmenu
 ```
-删除程序本体并还原 `.npmrc`，但保留 `~/.dsh`（会话/凭据）。彻底删除：`rm -rf ~/.dsh`。
+
+`uninstall` 删除程序本体并还原 `.npmrc`，但 **保留 `~/.dsh`**（会话/凭据）。要彻底删干净，追加：`rm -rf ~/.dsh`。
 
 ---
 
