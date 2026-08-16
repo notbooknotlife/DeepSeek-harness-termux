@@ -23,6 +23,23 @@ pkg update -y && pkg upgrade -y
 # termux-setup-storage
 ```
 
+> **🚀 提速 Tip：`pkg update/upgrade` 太慢或卡住？先换一个国内镜像源再执行。**
+>
+> 国内网络下默认官方源（`packages.termux.dev`）常被限速或超时。**用 Termux 自带的 `termux-change-repo` 换源最不易出错**，不用手动编辑文件：
+>
+> ```sh
+> termux-change-repo
+> ```
+> 会弹出镜像选择列表：
+> 1. 用**方向键**滚动到国内镜像，如 **TUNA（清华）**、中科大 **USTC**、南大 **NJU** 等；
+> 2. 按**空格**选中（光标处出现 `*`）；
+> 3. 按**回车**确认保存；
+> 4. 回终端重新执行：`pkg update -y && pkg upgrade -y`
+>
+> 换源后若某镜像仍慢/不通，可再 `termux-change-repo` 换另一个镜像。
+> 想还原官方源，在列表里选 **`Mirrors by Termux (default repository)`** 即可。
+
+
 然后一行部署（装缺失依赖→编译→装 DSH→打补丁→验证）：
 
 ```sh
