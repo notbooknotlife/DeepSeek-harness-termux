@@ -40,6 +40,17 @@ pkg update -y && pkg upgrade -y
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/notbooknotlife/DeepSeek-harness-termux/main/bootstrap.sh)" install
 ```
 
+> **🇨🇳 国内用户（Gitee 镜像）**：大陆网络拉 GitHub raw 常被限速/超时。可用 **Gitee 镜像** 一键安装——同一份代码、稳定直连、不走 GitHub：
+>
+> ```sh
+> RAW_BASE=https://gitee.com/Zyudgitee/Deepseek-harness-termux/raw/main \
+> bash -c "$(curl -fsSL --max-time 30 https://gitee.com/Zyudgitee/Deepseek-harness-termux/raw/main/bootstrap.sh)" install
+> ```
+>
+> - 上方用 **`RAW_BASE` 环境变量**把下载源切到 Gitee（脚本默认走 GitHub，支持用该变量覆盖）；安装全程从 Gitee 拉取，不碰 GitHub。
+> - **海外/能翻墙**直接用上面那条 GitHub 官方命令即可，两条命令装出来的结果完全一致。
+> - 换源同上：国内 `pkg` 慢就先用 `termux-change-repo` 换国内镜像再跑。
+
 > **首次运行**：装编译链 + `npm install` DSH + 现场编译 koffi/node-pty 等原生模块
 >（下载/编译阶段几分钟，**无输出属正常**，保持屏幕常亮）。
 >
