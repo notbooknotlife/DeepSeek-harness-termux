@@ -23,18 +23,14 @@ pkg update -y && pkg upgrade -y
 # termux-setup-storage
 ```
 
-> **🚀 提速 Tip：`pkg update/upgrade` 太慢或卡住？先换一个国内镜像源再执行。**
+> **🚀 提速 Tip：`pkg update/upgrade` 太慢或卡住？请切换国内镜像源再执行：**
 >
 > ```sh
 > termux-change-repo
 > ```
-> 会弹出镜像选择列表：
-> 1. 用**方向键**滚动到国内镜像，如 **TUNA（清华）**、中科大 **USTC**、南大 **NJU** 等；
-> 2. 按**空格**选中（光标处出现 `*`）；
-> 3. 按**回车**确认保存；
-> 4. 回终端重新执行：`pkg update -y && pkg upgrade -y`
->
-> 换源后若某镜像仍慢/不通，可再 `termux-change-repo` 换另一个镜像。
+> 选择 mirrors.tuna.tsinghua.edu.cn
+> 按**回车**确认保存；
+> 回终端重新执行：`pkg update -y && pkg upgrade -y`
 > 想还原官方源，在列表里选 **`Mirrors by Termux (default repository)`** 即可。
 
 
