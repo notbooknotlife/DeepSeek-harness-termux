@@ -28,9 +28,9 @@ pkg update -y && pkg upgrade -y
 > ```sh
 > termux-change-repo
 > ```
-> 选择 mirrors.tuna.tsinghua.edu.cn
-> 按**回车**确认保存；
-> 回终端重新执行：`pkg update -y && pkg upgrade -y`
+> 1.选择 mirrors.tuna.tsinghua.edu.cn  
+> 2.按**回车**确认保存；  
+> 3.回终端重新执行：`pkg update -y && pkg upgrade -y`  
 > 想还原官方源，在列表里选 **`Mirrors by Termux (default repository)`** 即可。
 
 
