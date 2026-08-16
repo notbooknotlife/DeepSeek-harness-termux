@@ -253,6 +253,7 @@ install(){
   setup_workspace
   install_mobile
   install_shellmenu
+  install_diagnose
 
   # --- H. 逐项验证(DSH 最终真正可用) ---
   verify
@@ -463,6 +464,27 @@ manifest(){
   { echo "# DSH 部署改动清单 $(date)"; echo "程序: $D"; echo "入口: $DSH_BIN"; echo "配置: $DSH_CONF_HOME"; echo "改动: $NPMRC 备份: $NPMRC_BACKUP"; echo "日志: $LOG_FILE"; echo "卸载: bash $0 uninstall"; } > "$HOME_DIR/.dsh_deploy_manifest.txt"
   chmod 600 "$HOME_DIR/.dsh_deploy_manifest.txt" 2>/dev/null
 }
+
+
+#------ 诊断工具(dsh-diagnose 持续监控) ------
+# 把 diagnose/dsh-diagnose.sh 自动装进脚本环境 ~/.dsh/diagnose/
+install_diagnose(){
+  local DIAG_DIR="$HOME_DIR/.dsh/diagnose"
+  mkdir -p "$DIAG_DIR"
+  if [ -f "$SCRIPT_DIR/diagnose/dsh-diagnose.sh" ]; then
+    cp -f "$SCRIPT_DIR/diagnose/dsh-diagnose.sh" "$DIAG_DIR/dsh-diagnose.sh" 2>/dev/null
+  else
+    curl -fsSL --max-time 20 "$RAW_BASE/diagnose/dsh-diagnose.sh" -o "$DIAG_DIR/dsh-diagnose.sh" 2>/dev/null || true
+  fi
+  if [ -s "$DIAG_DIR/dsh-diagnose.sh" ]; then
+    chmod +x "$DIAG_DIR/dsh-diagnose.sh" 2>/dev/null
+    ok "诊断工具已装: $DIAG_DIR/dsh-diagnose.sh (dsh 启动时自动后台监控)"
+  else
+    warn "诊断工具未装(仓库无 diagnose/ 或下载失败), 不影响 dsh 本体"
+  fi
+}
+
+# 状态里加上诊断工具状态
 
 #------ 启动 UI(含手机/局域网访问) ------
 serve(){

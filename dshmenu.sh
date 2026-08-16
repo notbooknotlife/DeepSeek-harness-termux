@@ -38,12 +38,11 @@ cmd_status(){ bash "$DEPLOY_SCRIPT" status; }
 # 后台启动 dsh web + 自动开浏览器，然后等回车返回菜单
 # 启动 dsh 时自动挂上持续监控器(诊断"过段时间失效"), 无需任何额外操作
 auto_monitor(){
-  # 定位监控器: 优先诊断目录, 回退仓库 diagnose/
+  # 优先脚本环境 ~/.dsh/diagnose/; 回退仓库 diagnose/
   local mon
-  for m in "$DSH_MONITOR" "$HOME/storage/dsh-src/diagnose/dsh-monitor.sh" "$HOME/dsh-src/diagnose/dsh-monitor.sh"; do
+  for m in "$DSH_MONITOR" "$HOME/.dsh/diagnose/dsh-diagnose.sh" "$HOME/storage/dsh-src/diagnose/dsh-diagnose.sh" "$(dirname "$0")/diagnose/dsh-diagnose.sh"; do
     [ -f "$m" ] && { mon="$m"; break; }
   done
-  if command -v curl >/dev/null 2>&1 && { command -v termux >/dev/null 2>&1; }; then :; fi
   if [ -n "$mon" ]; then
     ( bash "$mon" start "${DSH_MONITOR_INTERVAL:-15}" >/dev/null 2>&1 & )
   fi
