@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         dsh web 手机端分区自适应 (JS 统计行自适应)
 // @namespace    本机自用
-// @version      19.0.0
+// @version      20.0.0
 // @description  一份脚本：①输入行固定百分比间距；②设置面板上下15%/卡片；③统计行 FJxK0a_root JS动态测量字号，保证完整可见且≤2行
 // @match        http://127.0.0.1:3080/*
 // @match        http://localhost:3080/*
@@ -107,8 +107,21 @@
   width: 100% !important;              /* 下拉框撑满整行 */
   max-width: none !important;
   align-self: stretch !important;
-  justify-content: space-between !important;
+
+/* ---- 用户提问问卷(user-questions): 底部"跳过本题/下一题"按钮 窄屏防右缘被裁/遮挡 ---- */
+.Mbwy4a_footer {
+  flex-wrap: wrap !important; justify-content: flex-start !important;
+  align-items: center !important; gap: 10px !important;
 }
+.Mbwy4a_footerActions {
+  flex-wrap: wrap !important; justify-content: flex-start !important; gap: 8px !important;
+}
+.Mbwy4a_footerActions > * {
+  flex: 0 1 auto !important; min-width: 0 !important; white-space: normal !important;
+}
+/* 后缀选择器兜底(DSH 更新前缀变化时仍尽量生效) */
+[class$="_footerActions"] { flex-wrap: wrap !important; }
+[class$="_footerActions"] > * { max-width: 100% !important; white-space: normal !important; }
 `;
 
   var STYLE_ID = 'dsh-mobile-partition-fix';

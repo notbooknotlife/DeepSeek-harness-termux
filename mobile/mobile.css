@@ -50,3 +50,24 @@
 .VOzbGW_panel [class$="_row"] { flex-wrap: wrap !important; align-items: flex-start !important; gap: 6px !important; }
 .VOzbGW_panel [class$="_rowText"] { flex: 1 1 0px !important; min-width: 0 !important; padding-right: 0 !important; display: block !important; }
 .VOzbGW_panel [class$="_title"], .VOzbGW_panel [class$="_desc"] { font-size: clamp(12.5px, 2.4vw, 16px) !important; line-height: 1.4 !important; writing-mode: horizontal-tb !important; white-space: normal !important; word-break: break-word !important; overflow-wrap: break-word !important; max-width: 100% !important; }
+
+/* ---- 用户提问问卷(user-questions): 底部"跳过本题/下一题"按钮 窄屏防右缘被裁/遮挡 ---- */
+.Mbwy4a_footer {
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.Mbwy4a_footerActions {
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+}
+.Mbwy4a_footerActions > * {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  white-space: normal !important;
+}
+/* 使用后缀选择器兜底(DSH 更新前缀变化时仍尽量生效) */
+[class$="_footerActions"] { flex-wrap: wrap !important; }
+[class$="_footerActions"] > * { max-width: 100% !important; white-space: normal !important; }
