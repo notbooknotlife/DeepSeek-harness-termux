@@ -39,11 +39,16 @@ cmd_status(){ bash "$DEPLOY_SCRIPT" status; }
 launch_dsh(){
   # mode=persist 常驻(输入1)；mode=test 启动后验证端口即关闭(输入2/3)
   local host="$1" port="$2" mode="${3:-persist}"
+  # 工作区目录：dsh 的 workspaceRoot 取 process.cwd()，必须从干净工作区启动，
+  # 否则会落到整个 $HOME(数GB)，导致前端工作区/目录/插件加载极慢或卡死。
+  local WS="${DSH_WORKSPACE:-$HOME/.dsh/workspace}"
+  mkdir -p "$WS"
   # 常驻模式: 若已在运行则不重复启动
   if command -v pgrep >/dev/null 2>&1 && pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1; then
     echo "${C_YEL}已有 dsh web 在运行。${C_RST}"
   else
-    nohup dsh web --host "$host" --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 &
+    # 用子 shell：(cd 工作区 && nohup dsh web) —— 让 process.cwd()=工作区，且不影响本菜单 shell
+    ( cd "$WS" && nohup dsh web --host "$host" --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
     sleep 3   # 等端口起来
   fi
   echo "  本机访问:      http://127.0.0.1:$port"

@@ -485,6 +485,10 @@ serve(){
     ( sleep 2; termux-open-url "http://127.0.0.1:$LANG_PORT" >/dev/null 2>&1 ) &
     ok "已自动打开浏览器: http://127.0.0.1:$LANG_PORT"
   fi
+  # dsh 的 workspaceRoot 取 process.cwd()：必须先从干净工作区目录启动，
+  # 否则 dsh 会把整个 $HOME(数GB)当工作区，导致前端工作区/目录/插件加载极慢或卡死。
+  mkdir -p "$WORKSPACE"
+  cd "$WORKSPACE" || { err "无法进入工作区 $WORKSPACE"; return 1; }
   exec "$DSH_BIN" --profile web --host "$LANG_HOST" --port "$LANG_PORT"
 }
 
