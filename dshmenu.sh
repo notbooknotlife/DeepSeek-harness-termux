@@ -107,6 +107,16 @@ launch_dsh(){
 SOCAT_BIN="${DSH_SOCAT:-}"
 
 
+
+lan_get_ip(){
+  local ip=""
+  ip=$(ifconfig 2>/dev/null | awk '/^wlan/{w=1} w&&/inet /{print $2;exit}')
+  if [ -z "$ip" ]; then
+    ip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{ifc=$1} /inet /&&ifc!~/^(lo|docker|tun|virbr)/{print $2;exit}')
+  fi
+  echo "$ip"
+}
+
 # 确保 caddy 已安装(未装则 pkg install)
 lan_ensure_caddy(){
   if command -v caddy >/dev/null 2>&1; then
