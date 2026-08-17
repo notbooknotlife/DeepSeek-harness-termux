@@ -29,10 +29,9 @@ menu_banner(){
   echo "╠══════════════════════════════════════════════════╣"
   echo "║  ${C_YEL}1)${C_RST} 直接启动        → ${C_CYA}dsh web${C_RST}"
   echo "║  ${C_YEL}2)${C_RST} 自定义端口启动  → ${C_CYA}dsh web --port <端口>${C_RST}"
-  echo "║  ${C_YEL}3)${C_RST} 局域网启动      → ${C_CYA}dsh web --host 0.0.0.0 --port <端口>${C_RST}"
+  echo "║  ${C_YEL}3)${C_RST} 局域网启动      → ${C_CYA}端口转发(socat)供其它设备访问${C_RST}"
   echo "║  ${C_YEL}4)${C_RST} 查看状态        → ${C_CYA}bash $DEPLOY_SCRIPT status${C_RST}"
-  echo "║  ${C_YEL}5)${C_RST} 局域网开/关    → ${C_CYA}开启/关闭局域网访问${C_RST}"
-  echo "║  ${C_YEL}6)${C_RST} 完全卸载        → ${C_CYA}卸载 dsh(+清配置)${C_RST}"
+  echo "║  ${C_YEL}5)${C_RST} 完全卸载        → ${C_CYA}卸载 dsh(+清配置)${C_RST}"
   echo "║  ${C_YEL}0)${C_RST} 退出"
   echo "╚══════════════════════════════════════════════════╝"
 }
@@ -74,17 +73,11 @@ launch_dsh(){
     echo "${C_YEL}已有 dsh web 在运行。${C_RST}"
   else
     # 用子 shell：(cd 工作区 && nohup dsh web) —— 让 process.cwd()=工作区，且不影响本菜单 shell
-    # host=0.0.0.0 时【不传 --host】(dsh 命令行会拦截 0.0.0.0), 靠 cordis.patch.yml 配置的
-    # webserver host 生效(已由 luangwei 开关写入); 本机/自定义端口才显式传 --host。
-    local hostarg=()
-    if [ "$host" != "0.0.0.0" ]; then hostarg=(--host "$host"); fi
-    ( cd "$WS" && nohup dsh web "${hostarg[@]}" --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
+    # dsh 始终监听本机 127.0.0.1(官方安全限制不支持0.0.0.0); 局域网访问由 socat 转发(选项3)实现。
+    ( cd "$WS" && nohup dsh web --host 127.0.0.1 --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
     sleep 3   # 等端口起来
   fi
   echo "  本机访问:      http://127.0.0.1:$port"
-  local lanip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{if=$1}/inet /{print if,$2}' | awk '$1~/^wlan/{print $2;exit}' | cut -d: -f2)
-  [ -z "$lanip" ] && lanip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{if=$1}/inet /{print if,$2}' | grep -vE '^(lo|docker|tun|virbr)' | awk '{print $2;exit}' | cut -d: -f2)
-  [ -n "$lanip" ] && echo "  局域网设备访问: http://$lanip:$port"
 
   if [ "$mode" = "persist" ]; then
     # 常驻(1): 保持运行，打开浏览器
@@ -107,80 +100,65 @@ launch_dsh(){
 }
 
 
-# ================= 局域网 开/关 =================
-# 原理: dsh 命令行 --host 0.0.0.0 会被 dsh 安全拦截; 但通过 profile 配置
-#       cordis.patch.yml 给 webserver 设 host 可生效(启动时读配置, 不经命令行拦截)。
-#       改动 cordis.patch.yml 后必须【重启 dsh】才生效。此处不改 dsh 本体, 只动配置。
-PATCH_YML="${DSH_PATCH_YML:-$HOME/.dsh/profiles/web/cordis.patch.yml}"
 
-# 检测当前局域网状态: on=开启; off=关闭(默认)
-lan_status(){
-  if [ -f "$PATCH_YML" ] && grep -q "0.0.0.0" "$PATCH_YML" 2>/dev/null; then
-    echo on
+# ================= 局域网启动(socat 端口转发) =================
+# 原理: dsh 固定监听 127.0.0.1:<DSH_PORT>, 用 socat 在【局域网端口】转发到 dsh 本机端口。
+#       不改 dsh 配置/不动 dsh 本体; socat 是独立转发进程, 返回菜单时终止。
+SOCAT_BIN="${DSH_SOCAT:-}"
+
+lan_get_ip(){
+  local ip=""
+  ip=$(ifconfig 2>/dev/null | awk '/^wlan/{w=1} w&&/inet /{print $2;exit}')
+  if [ -z "$ip" ]; then
+    ip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{ifc=$1} /inet /&&ifc!~/^(lo|docker|tun|virbr)/{print $2;exit}')
+  fi
+  echo "$ip"
+}
+
+# 确保 socat 已安装(未装则 pkg install)
+lan_ensure_socat(){
+  if command -v socat >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "  socat 未安装，正在安装..."
+  if command -v pkg >/dev/null 2>&1; then
+    pkg install -y socat
+  elif command -v apt >/dev/null 2>&1; then
+    sudo apt-get install -y socat 2>/dev/null || apt-get install -y socat
+  fi
+  if command -v socat >/dev/null 2>&1; then
+    echo "  socat 安装完成"
+    return 0
   else
-    echo off
+    echo "${C_RED}  socat 安装失败，无法开启局域网${C_RST}"
+    return 1
   fi
 }
 
-# 写入 host 到 cordis.patch.yml(最小: 追加以 webserver 覆盖 host)
-# mode=on→0.0.0.0 ; mode=off→127.0.0.1
-lan_write_config(){
-  local mode="$1"
-  local hostval="127.0.0.1"
-  [ "$mode" = "on" ] && hostval="0.0.0.0"
-  # 移除已有 webserver host 行, 再追加
-  if [ -f "$PATCH_YML" ]; then
-    sed -i '/id: webserver/,/host:/d' "$PATCH_YML" 2>/dev/null || true
-    sed -i '/- id: webserver/d;/host:/d' "$PATCH_YML" 2>/dev/null || true
+# 启动 socat 转发: 局域网 <lanport> -> dsh 127.0.0.1:<dshport>
+lan_socat_start(){
+  local lanport="$1" dshport="${2:-3080}"
+  if ! lan_ensure_socat; then return 1; fi
+  # 端口校验: 不能等于 dsh 本体端口(冲突)
+  if [ "$lanport" = "$dshport" ]; then
+    echo "${C_RED}  ⚠ ${lanport} 是 dsh 本体端口，SOCAT 不能再转同一端口。${C_RST}"
+    return 1
   fi
-  cat >> "$PATCH_YML" <<YEOF
-
-- id: webserver
-  config:
-    host: $hostval
-    port: \${DSH_PORT:-3080}
-YEOF
+  # 先终止可能的残留 socat
+  lan_socat_stop
+  local lanip
+  lanip=$(lan_get_ip)
+  setsid socat TCP-LISTEN:"$lanport",fork,reuseaddr TCP:127.0.0.1:"$dshport" </dev/null >/dev/null 2>&1 &
+  sleep 1
+  echo "${C_GRN}  ✅ 局域网已开启：socat ${lanport} → 127.0.0.1:${dshport}${C_RST}"
+  [ -n "$lanip" ] && echo "     其它设备访问: http://${lanip}:${lanport}"
+  echo "     本机访问:      http://127.0.0.1:${lanport}"
 }
 
-# 开启/关闭 交互(默认关闭)
-lan_toggle(){
-  local cur now need
-  cur=$(lan_status)
-  if [ "$cur" = "off" ]; then
-    now="开" ; need="开启"
-  else
-    now="关" ; need="关闭"
-  fi
-  clear
-  echo "═══════════════════════════════════"
-  echo "  ${C_YEL}${need}局域网访问需要【重启 dsh】才能生效${C_RST}"
-  echo "═══════════════════════════════════"
-  if [ "$cur" = "off" ]; then
-    echo "  开启后,同一 Wi-Fi 设备可通过"
-    echo "    http://<本机局域网IP>:<端口>  访问本 dsh。"
-    echo ""
-    echo "  ⚠ 安全提示: 局域网模式下同网络内"
-    echo "    其他设备也能访问 dsh(官方警告存在"
-    echo "    远程代码执行 RCE 风险),请仅在可信"
-    echo "    网络中使用。"
-  else
-    echo "  关闭后 dsh 仅允许本机访问"
-    echo "    (http://127.0.0.1:<端口>)。"
-  fi
-  echo ""
-  echo "  已确认要${need}吗? 输入 ${C_GRN}y${C_RST} 确认 ${C_RST}(其他任意键返回菜单)"
-  read -rp "> " k
-  case "$k" in
-    y|Y)
-      if [ "$cur" = "off" ]; then lan_write_config on; else lan_write_config off; fi
-      echo "  ${C_YEL}配置已${need},请【重启 dsh】让改动生效。${C_RST}"
-      echo "  若要立即重启,请先退出菜单再运行: dshmenu 选项1 重新启动"
-      ;;
-    *)
-      echo "${C_YEL}已取消,返回菜单(${need}局域网未改动)。${C_RST}"
-      ;;
-  esac
-  read -rp "按回车返回菜单..." _
+# 终止 socat(关闭局域网)
+lan_socat_stop(){
+  pkill -f "socat TCP-LISTEN" 2>/dev/null
+  true
 }
 
 cmd_uninstall(){
@@ -238,27 +216,31 @@ while :; do
         launch_dsh "127.0.0.1" "$port" test   # 测试后关端口
         break
       done;;
-    3)  # 局域网启动: 需先开启局域网,输端口,输0返回
-      if [ "$(lan_status)" = "off" ]; then
-        echo "${C_YEL}当前局域网未开启,无法进行局域网启动。${C_RST}"
-        echo "请先到【5 局域网开/关】开启局域网后,再回来使用本选项。"
-        echo; read -rp "按任意键返回菜单..." _
-      else
-        while :; do
-          read -rp "请输入端口(0=返回上一级,默认3080): " port
-          if [ "$port" = "0" ]; then echo "已返回菜单。"; break; fi
-          if [ -z "$port" ]; then port=3080; fi
-          launch_dsh "0.0.0.0" "$port" test   # 测试后关端口
-          break
-        done
-      fi;;
+    3)  # 局域网启动(socat 端口转发): 输端口,0返回,3080不可转发,其他启用/终止socat
+      while :; do
+        read -rp "局域网端口(0=返回, 不可用3080, 默认8080): " lport
+        if [ "$lport" = "0" ]; then echo "已返回菜单。"; break; fi
+        if [ -z "$lport" ]; then lport=8080; fi
+        if [ "$lport" = "3080" ]; then
+          echo "${C_YEL}  ⚠ 3080 是 dsh 本体端口,不能用于转发,请换一个。${C_RST}"
+          continue
+        fi
+        # 启动 socat 转发(测试模式)
+        if lan_socat_start "$lport" 3080; then
+          echo "${C_YEL}（3）局域网已开启,可在其它设备浏览器测试。${C_RST}"
+          read -rp "测试完按回车关闭局域网并返回菜单: " _
+          lan_socat_stop
+          echo "${C_YEL}已关闭局域网,返回菜单。${C_RST}"
+        else
+          read -rp "按回车返回菜单..." _
+        fi
+        break
+      done;;
     4)  # 查看状态(保持原样,回车返回)
       echo "→ 查看状态"
       cmd_status
       echo; read -rp "按回车返回菜单..." _;;
-    5)  # 局域网 开/关 切换(当前: 开→问关闭; 关→问开启)
-      lan_toggle;;
-    6)  # 完全卸载: 确认后卸载并退出菜单; 取消则回车返回
+    5)  # 完全卸载: 确认后卸载并退出菜单; 取消则回车返回
       cmd_uninstall;;
     0|q|quit)
       echo "退出。"; break;;
