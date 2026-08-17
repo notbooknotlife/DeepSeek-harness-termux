@@ -210,8 +210,9 @@ lan_caddy_status(){
   case "$k" in
     y|Y)
       lan_caddy_stop
-      rm -f "$HOME/.dsh/caddy/Caddyfile" "$HOME/.dsh/caddy/caddy.log" 2>/dev/null
-      echo "${C_YEL}  ✅ 局域网已关闭并还原。${C_RST}"
+      lan_dsh_restore   # 先从备份还原 dsh
+      rm -f "$HOME/.dsh/caddy/Caddyfile" "$HOME/.dsh/caddy/caddy.log" "$DSH_ORIG" 2>/dev/null
+      echo "${C_YEL}  ✅ 局域网已关闭并还原(dsh/caddy)。${C_RST}"
       ;;
     *)
       echo "${C_YEL}  已取消，返回菜单。${C_RST}"
@@ -220,6 +221,44 @@ lan_caddy_status(){
   read -rp "按回车返回菜单..." _
 }
 
+
+
+# ================= dsh 本体 注入/备份/还原(局域网开启事务) =================
+DSH_INDEX="/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"
+DSH_ORIG="$HOME/.dsh/caddy/dsh-connection.index.orig"
+
+lan_dsh_backup(){
+  mkdir -p "$HOME/.dsh/caddy"
+  if [ ! -f "$DSH_ORIG" ] && [ -f "$DSH_INDEX" ]; then
+    cp -f "$DSH_INDEX" "$DSH_ORIG" 2>/dev/null
+  fi
+}
+
+lan_dsh_inject(){
+  lan_dsh_backup
+  [ -f "$DSH_INDEX" ] || { echo "  ${C_RED}找不到 dsh 文件: $DSH_INDEX${C_RST}"; return 1; }
+  sed -i     -e 's/!isTrustedApiRequest(request, \[\])/!isTrustedApiRequest(request, this.trustedHosts)/g'     -e 's/const trustedHosts = options.authority === "loopback" ? \[\] : this.trustedHosts;/const trustedHosts = this.trustedHosts;/'     "$DSH_INDEX"
+  echo "  dsh 已注入(放行局域网设置接口)"
+}
+
+lan_dsh_restore(){
+  if [ -f "$DSH_ORIG" ]; then
+    cp -f "$DSH_ORIG" "$DSH_INDEX" 2>/dev/null
+    echo "  dsh 已还原到初始"
+  else
+    echo "  ${C_YEL}  无 dsh 备份，跳过还原${C_RST}"
+  fi
+}
+
+lan_dsh_modified(){
+  [ ! -f "$DSH_ORIG" ] && return 0
+  [ ! -f "$DSH_INDEX" ] && return 0
+  if cmp -s "$DSH_INDEX" "$DSH_ORIG"; then return 0; else return 1; fi
+}
+
+lan_current_port(){
+  lan_caddy_get_port
+}
 
 cmd_uninstall(){
   echo
@@ -276,36 +315,56 @@ while :; do
         launch_dsh "127.0.0.1" "$port" test   # 测试后关端口
         break
       done;;
-    3)  # 开启局域网: 风险→y确认→端口→装caddy→注入配置→提示
-      echo "═══════════════════════════════════"
-      echo "  ${C_YEL}开启局域网访问${C_RST}"
-      echo "═══════════════════════════════════"
-      echo "  ⚠ 风险提示: 开启后同一 Wi-Fi 内其它"
-      echo "    设备可访问本 dsh；部分敏感接口仍"
-      echo "    受 dsh 安全保护(第三方插件接口可能 403)。"
-      echo ""
-      read -rp "确认开启吗? 输入 ${C_GRN}y${C_RST} 确认(其他任意键返回菜单): " k
-      case "$k" in
-        y|Y)
-          while :; do
-            read -rp "局域网端口(0=返回, 不可用3080, 默认8080): " lport
-            if [ "$lport" = "0" ]; then echo "已返回菜单。"; break; fi
-            if [ -z "$lport" ]; then lport=8080; fi
-            if [ "$lport" = "3080" ]; then
-              echo "${C_YEL}  ⚠ 3080 是 dsh 本体端口,不能用于局域网转发,请换一个。${C_RST}"
-              continue
-            fi
-            lan_caddy_start "$lport" 3080
-            echo ""
-            echo "${C_YEL}  ⚠ 局域网已开启,请【重启 dsh(选项1)】让 --trusted-host 生效。${C_RST}"
-            break
-          done
-          ;;
-        *)
-          echo "${C_YEL}  已取消，返回菜单。${C_RST}"
-          ;;
-      esac
-      read -rp "按回车返回菜单..." _;;
+    3)  # 开启局域网: 预检→风险→y→端口→备份+注入dsh→装caddy→提示
+      # 预检: 若 dsh 已被注入(局域网已开), 探出端口并返回
+      if lan_dsh_modified; then
+        echo "═══════════════════════════════════"
+        echo "  ${C_YEL}当前局域网已开启${C_RST}"
+        echo "═══════════════════════════════════"
+        local curport
+        curport=$(lan_current_port)
+        if [ -n "$curport" ]; then
+          echo "  已开启端口: ${curport}"
+          echo "  局域网访问: http://$(lan_get_ip):${curport}"
+        fi
+        echo "  如需关闭,请到【4 局域网状态】一键还原。"
+        echo; read -rp "按回车返回菜单..." _
+      else
+        echo "═══════════════════════════════════"
+        echo "  ${C_YEL}开启局域网访问${C_RST}"
+        echo "═══════════════════════════════════"
+        echo "  ⚠ 风险提示: 开启后同一 Wi-Fi 内其它"
+        echo "    设备可访问本 dsh；部分敏感接口将"
+        echo "    放行(需改 dsh 鉴权),退出时在【4】还原。"
+        echo ""
+        read -rp "确认开启吗? 输入 ${C_GRN}y${C_RST} 确认(其他任意键返回菜单): " k
+        case "$k" in
+          y|Y)
+            while :; do
+              read -rp "局域网端口(0=返回, 不可用3080, 默认8080): " lport
+              if [ "$lport" = "0" ]; then echo "已返回菜单。"; break; fi
+              if [ -z "$lport" ]; then lport=8080; fi
+              if [ "$lport" = "3080" ]; then
+                echo "${C_YEL}  ⚠ 3080 是 dsh 本体端口,不能用于局域网转发,请换一个。${C_RST}"
+                continue
+              fi
+              # 先注入 dsh(放行局域网设置接口), 再起 caddy
+              if lan_dsh_inject; then
+                lan_caddy_start "$lport" 3080
+                echo ""
+                echo "${C_YEL}  ✅ 局域网已开启。请【重启 dsh(选项1)】让配置生效。${C_RST}"
+              else
+                echo "${C_RED}  dsh 注入失败，未开启局域网。${C_RST}"
+              fi
+              break
+            done
+            ;;
+          *)
+            echo "${C_YEL}  已取消，返回菜单。${C_RST}"
+            ;;
+        esac
+        read -rp "按回车返回菜单..." _
+      fi;;
     4)  # 局域网状态: 显示端口 + y一键关闭还原/其他返回
       lan_caddy_status;;
     5)  # 查看状态(原有)
