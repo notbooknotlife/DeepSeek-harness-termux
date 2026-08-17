@@ -29,7 +29,7 @@ menu_banner(){
   echo "╠══════════════════════════════════════════════════╣"
   echo "║  ${C_YEL}1)${C_RST} 直接启动        → ${C_CYA}dsh web${C_RST}"
   echo "║  ${C_YEL}2)${C_RST} 自定义端口启动  → ${C_CYA}dsh web --port <端口>${C_RST}"
-  echo "║  ${C_YEL}3)${C_RST} 开启局域网      → ${C_CYA}风险确认→装caddy→注入配置→提示(需重启dsh)${C_RST}"
+  echo "║  ${C_YEL}3)${C_RST} 开启局域网      → ${C_CYA}配置caddy→注入配置${C_RST}"
   echo "║  ${C_YEL}4)${C_RST} 局域网状态      → ${C_CYA}查看端口/一键关闭还原${C_RST}"
   echo "║  ${C_YEL}5)${C_RST} 查看状态        → ${C_CYA}bash $DEPLOY_SCRIPT status${C_RST}"
   echo "║  ${C_YEL}6)${C_RST} 完全卸载        → ${C_CYA}卸载 dsh(+清配置)${C_RST}"
@@ -323,10 +323,10 @@ while :; do
         echo "═══════════════════════════════════"
         local curport
         curport=$(lan_current_port)
-        if [ -n "$curport" ]; then
-          echo "  已开启端口: ${curport}"
-          echo "  局域网访问: http://$(lan_get_ip):${curport}"
-        fi
+        echo "  局域网已开启："
+        echo "    本机访问:   http://127.0.0.1:3080"
+        [ -n "$curport" ] && echo "    局域网访问: http://$(lan_get_ip):${curport}"
+        echo ""
         echo "  如需关闭,请到【4 局域网状态】一键还原。"
         echo; read -rp "按回车返回菜单..." _
       else
