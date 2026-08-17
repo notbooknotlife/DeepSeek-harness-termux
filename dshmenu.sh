@@ -251,9 +251,9 @@ lan_dsh_restore(){
 }
 
 lan_dsh_modified(){
-  [ ! -f "$DSH_ORIG" ] && return 0
-  [ ! -f "$DSH_INDEX" ] && return 0
-  if cmp -s "$DSH_INDEX" "$DSH_ORIG"; then return 0; else return 1; fi
+  # 向 stdout 输出 0/1(供 $(...) 捕获)。0=未开启, 1=已开启
+  if [ ! -f "$DSH_ORIG" ] || [ ! -f "$DSH_INDEX" ]; then echo 0; return; fi
+  if cmp -s "$DSH_INDEX" "$DSH_ORIG"; then echo 0; else echo 1; fi
 }
 
 lan_current_port(){
