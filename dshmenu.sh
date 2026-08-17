@@ -29,7 +29,7 @@ menu_banner(){
   echo "╠══════════════════════════════════════════════════╣"
   echo "║  ${C_YEL}1)${C_RST} 直接启动        → ${C_CYA}dsh web${C_RST}"
   echo "║  ${C_YEL}2)${C_RST} 自定义端口启动  → ${C_CYA}dsh web --port <端口>${C_RST}"
-  echo "║  ${C_YEL}3)${C_RST} 局域网启动      → ${C_CYA}端口转发(socat)供其它设备访问${C_RST}"
+  echo "║  ${C_YEL}3)${C_RST} 局域网启动      → ${C_CYA}反向代理(caddy)供其它设备访问${C_RST}"
   echo "║  ${C_YEL}4)${C_RST} 查看状态        → ${C_CYA}bash $DEPLOY_SCRIPT status${C_RST}"
   echo "║  ${C_YEL}5)${C_RST} 完全卸载        → ${C_CYA}卸载 dsh(+清配置)${C_RST}"
   echo "║  ${C_YEL}0)${C_RST} 退出"
@@ -73,7 +73,7 @@ launch_dsh(){
     echo "${C_YEL}已有 dsh web 在运行。${C_RST}"
   else
     # 用子 shell：(cd 工作区 && nohup dsh web) —— 让 process.cwd()=工作区，且不影响本菜单 shell
-    # dsh 始终监听本机 127.0.0.1(官方安全限制不支持0.0.0.0); 局域网访问由 socat 转发(选项3)实现。
+    # dsh 始终监听本机 127.0.0.1(官方安全限制不支持0.0.0.0); 局域网访问由 caddy 反向代理(选项3)实现。
     ( cd "$WS" && nohup dsh web --host 127.0.0.1 --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
     sleep 3   # 等端口起来
   fi
@@ -101,65 +101,67 @@ launch_dsh(){
 
 
 
-# ================= 局域网启动(socat 端口转发) =================
-# 原理: dsh 固定监听 127.0.0.1:<DSH_PORT>, 用 socat 在【局域网端口】转发到 dsh 本机端口。
-#       不改 dsh 配置/不动 dsh 本体; socat 是独立转发进程, 返回菜单时终止。
+# ================= 局域网启动(caddy 反向代理) =================
+# 原理: dsh 固定监听 127.0.0.1:<DSH_PORT>, 用 caddy 在【局域网端口】反向代理到 dsh 本机端口。
+#       不改 dsh 配置/不动 dsh 本体; caddy 是独立代理进程, 返回菜单时终止。
 SOCAT_BIN="${DSH_SOCAT:-}"
 
-lan_get_ip(){
-  local ip=""
-  ip=$(ifconfig 2>/dev/null | awk '/^wlan/{w=1} w&&/inet /{print $2;exit}')
-  if [ -z "$ip" ]; then
-    ip=$(ifconfig 2>/dev/null | awk '/^[a-z]/{ifc=$1} /inet /&&ifc!~/^(lo|docker|tun|virbr)/{print $2;exit}')
-  fi
-  echo "$ip"
-}
 
-# 确保 socat 已安装(未装则 pkg install)
-lan_ensure_socat(){
-  if command -v socat >/dev/null 2>&1; then
+# 确保 caddy 已安装(未装则 pkg install)
+lan_ensure_caddy(){
+  if command -v caddy >/dev/null 2>&1; then
     return 0
   fi
-  echo "  socat 未安装，正在安装..."
+  echo "  caddy 未安装，正在安装..."
   if command -v pkg >/dev/null 2>&1; then
-    pkg install -y socat
+    pkg install -y caddy
   elif command -v apt >/dev/null 2>&1; then
-    sudo apt-get install -y socat 2>/dev/null || apt-get install -y socat
+    sudo apt-get install -y caddy 2>/dev/null || apt-get install -y caddy
   fi
-  if command -v socat >/dev/null 2>&1; then
-    echo "  socat 安装完成"
+  if command -v caddy >/dev/null 2>&1; then
+    echo "  caddy 安装完成"
     return 0
   else
-    echo "${C_RED}  socat 安装失败，无法开启局域网${C_RST}"
+    echo "${C_RED}  caddy 安装失败，无法开启局域网${C_RST}"
     return 1
   fi
 }
 
-# 启动 socat 转发: 局域网 <lanport> -> dsh 127.0.0.1:<dshport>
-lan_socat_start(){
+# 启动 caddy 反向代理: 局域网 <lanport> -> dsh 127.0.0.1:<dshport>
+lan_caddy_start(){
   local lanport="$1" dshport="${2:-3080}"
-  if ! lan_ensure_socat; then return 1; fi
+  if ! lan_ensure_caddy; then return 1; fi
   # 端口校验: 不能等于 dsh 本体端口(冲突)
   if [ "$lanport" = "$dshport" ]; then
-    echo "${C_RED}  ⚠ ${lanport} 是 dsh 本体端口，SOCAT 不能再转同一端口。${C_RST}"
+    echo "${C_RED}  ⚠ ${lanport} 是 dsh 本体端口，不能用于反向代理。${C_RST}"
     return 1
   fi
-  # 先终止可能的残留 socat
-  lan_socat_stop
+  # 终止可能的残留 caddy
+  lan_caddy_stop
+  # 写 Caddyfile
+  local cdir="$HOME/.dsh/caddy"
+  mkdir -p "$cdir"
+  cat > "$cdir/Caddyfile" <<'CADDY'
+:{LANPORT} {
+	reverse_proxy {DSHPORT}
+}
+CADDY
+  sed -i "s/{LANPORT}/$lanport/;s|{DSHPORT}|127.0.0.1:$dshport|" "$cdir/Caddyfile"
   local lanip
   lanip=$(lan_get_ip)
-  setsid socat TCP-LISTEN:"$lanport",fork,reuseaddr TCP:127.0.0.1:"$dshport" </dev/null >/dev/null 2>&1 &
-  sleep 1
-  echo "${C_GRN}  ✅ 局域网已开启：socat ${lanport} → 127.0.0.1:${dshport}${C_RST}"
+  setsid caddy run --config "$cdir/Caddyfile" >"$cdir/caddy.log" 2>&1 &
+  sleep 2
+  echo "${C_GRN}  ✅ 局域网已开启：caddy :${lanport} → 127.0.0.1:${dshport}${C_RST}"
   [ -n "$lanip" ] && echo "     其它设备访问: http://${lanip}:${lanport}"
   echo "     本机访问:      http://127.0.0.1:${lanport}"
 }
 
-# 终止 socat(关闭局域网)
-lan_socat_stop(){
-  pkill -f "socat TCP-LISTEN" 2>/dev/null
+# 终止 caddy(关闭局域网)
+lan_caddy_stop(){
+  ps -eo pid,comm | awk '$2=="caddy"{print $1}' | xargs -r kill 2>/dev/null
   true
 }
+
 
 cmd_uninstall(){
   echo
@@ -216,20 +218,20 @@ while :; do
         launch_dsh "127.0.0.1" "$port" test   # 测试后关端口
         break
       done;;
-    3)  # 局域网启动(socat 端口转发): 输端口,0返回,3080不可转发,其他启用/终止socat
+    3)  # 局域网启动(caddy 反向代理): 输端口,0返回,3080不可代理,其他启用/终止caddy
       while :; do
         read -rp "局域网端口(0=返回, 不可用3080, 默认8080): " lport
         if [ "$lport" = "0" ]; then echo "已返回菜单。"; break; fi
         if [ -z "$lport" ]; then lport=8080; fi
         if [ "$lport" = "3080" ]; then
-          echo "${C_YEL}  ⚠ 3080 是 dsh 本体端口,不能用于转发,请换一个。${C_RST}"
+          echo "${C_YEL}  ⚠ 3080 是 dsh 本体端口,不能用于代理,请换一个。${C_RST}"
           continue
         fi
-        # 启动 socat 转发(测试模式)
-        if lan_socat_start "$lport" 3080; then
+        # 启动 caddy 反向代理(测试模式)
+        if lan_caddy_start "$lport" 3080; then
           echo "${C_YEL}（3）局域网已开启,可在其它设备浏览器测试。${C_RST}"
           read -rp "测试完按回车关闭局域网并返回菜单: " _
-          lan_socat_stop
+          lan_caddy_stop
           echo "${C_YEL}已关闭局域网,返回菜单。${C_RST}"
         else
           read -rp "按回车返回菜单..." _
