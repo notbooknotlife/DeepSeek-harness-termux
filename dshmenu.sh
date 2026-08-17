@@ -138,6 +138,7 @@ lan_write_config(){
 - id: webserver
   config:
     host: $hostval
+    port: \${DSH_PORT:-3080}
 YEOF
 }
 
