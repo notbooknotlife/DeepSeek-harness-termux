@@ -74,7 +74,12 @@ launch_dsh(){
   else
     # 用子 shell：(cd 工作区 && nohup dsh web) —— 让 process.cwd()=工作区，且不影响本菜单 shell
     # dsh 始终监听本机 127.0.0.1(官方安全限制不支持0.0.0.0); 局域网访问由 caddy 反向代理(选项3)实现。
-    ( cd "$WS" && nohup dsh web --host 127.0.0.1 --port "$port" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
+    # 自动附加 --trusted-host <局域网IP>: 让 dsh 信任来自局域网的 WebSocket(否则 caddy 转发时 /api 数据 403)。
+    local TH=""
+    TH=$(lan_get_ip)
+    local trustarg=()
+    [ -n "$TH" ] && trustarg=(--trusted-host "$TH")
+    ( cd "$WS" && nohup dsh web --host 127.0.0.1 --port "$port" "${trustarg[@]}" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
     sleep 3   # 等端口起来
   fi
   echo "  本机访问:      http://127.0.0.1:$port"
