@@ -317,7 +317,7 @@ while :; do
       done;;
     3)  # 开启局域网: 预检→风险→y→端口→备份+注入dsh→装caddy→提示
       # 预检: 若 dsh 已被注入(局域网已开), 探出端口并返回
-      if lan_dsh_modified; then
+      if [ "$(lan_dsh_modified)" = "1" ]; then
         echo "═══════════════════════════════════"
         echo "  ${C_YEL}当前局域网已开启${C_RST}"
         echo "═══════════════════════════════════"
@@ -352,7 +352,11 @@ while :; do
               if lan_dsh_inject; then
                 lan_caddy_start "$lport" 3080
                 echo ""
-                echo "${C_YEL}  ✅ 局域网已开启。请【重启 dsh(选项1)】让配置生效。${C_RST}"
+                echo "  ✅ 局域网已开启："
+                echo "     本机访问:  http://127.0.0.1:3080"
+                echo "     局域网访问: http://$(lan_get_ip):${lport}"
+                echo ""
+                echo "  ${C_YEL}  ⚠ 请【重启 dsh(选项1)】让配置生效。${C_RST}"
               else
                 echo "${C_RED}  dsh 注入失败，未开启局域网。${C_RST}"
               fi
