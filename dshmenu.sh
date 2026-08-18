@@ -318,15 +318,29 @@ while :; do
     3)  # 开启局域网: 预检→风险→y→端口→备份+注入dsh→装caddy→提示
       # 预检: 若 dsh 已被注入(局域网已开), 探出端口并返回
       if [ "$(lan_dsh_modified)" = "1" ]; then
-        # 已开启: 确保 caddy 重新拉起(重启dsh后caddy不会自动起), 用已有转发端口
+        # 已开启: 先确保 dsh(3080) 在运行, 再拉起 caddy
         local curport
         curport=$(lan_current_port)
         echo "═══════════════════════════════════"
         echo "  ${C_YEL}当前局域网已开启${C_RST}"
         echo "═══════════════════════════════════"
+        # 1) 确保 dsh(3080) 运行(重启后可能没起)
+        if ! pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1; then
+          echo "  ⚠ 检测到 dsh(3080) 未运行, 正在启动..."
+          mkdir -p "$HOME/.dsh/workspace"
+          local TH
+          TH=$(lan_get_ip)
+          local trustarg=()
+          [ -n "$TH" ] && trustarg=(--trusted-host "$TH")
+          ( cd "$HOME/.dsh/workspace" && nohup dsh web --host 127.0.0.1 --port 3080 "${trustarg[@]}" >"$HOME/.dsh/dsh-web.log" 2>&1 ) &
+          sleep 4
+          echo "  ✅ dsh(3080) 已启动"
+        else
+          echo "  dsh(3080) 运行中"
+        fi
+        # 2) 确保 caddy 转发(用已有端口)
         if [ -n "$curport" ]; then
           echo "  检测到转发端口: ${curport}"
-          echo "  ⚠ 重启 dsh 后 caddy 不会自动开启, 正在重新拉起 caddy..."
           if lan_caddy_start "$curport" 3080; then
             echo "  ✅ caddy 已重新开启"
           else
