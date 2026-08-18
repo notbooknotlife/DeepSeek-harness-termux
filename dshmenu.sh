@@ -318,15 +318,26 @@ while :; do
     3)  # 开启局域网: 预检→风险→y→端口→备份+注入dsh→装caddy→提示
       # 预检: 若 dsh 已被注入(局域网已开), 探出端口并返回
       if [ "$(lan_dsh_modified)" = "1" ]; then
+        # 已开启: 确保 caddy 重新拉起(重启dsh后caddy不会自动起), 用已有转发端口
+        local curport
+        curport=$(lan_current_port)
         echo "═══════════════════════════════════"
         echo "  ${C_YEL}当前局域网已开启${C_RST}"
         echo "═══════════════════════════════════"
-        local curport
-        curport=$(lan_current_port)
-        echo "  局域网已开启："
-        echo "    本机访问:   http://127.0.0.1:3080"
-        [ -n "$curport" ] && echo "    局域网访问: http://$(lan_get_ip):${curport}"
+        if [ -n "$curport" ]; then
+          echo "  检测到转发端口: ${curport}"
+          echo "  ⚠ 重启 dsh 后 caddy 不会自动开启, 正在重新拉起 caddy..."
+          if lan_caddy_start "$curport" 3080; then
+            echo "  ✅ caddy 已重新开启"
+          else
+            echo "  ${C_RED}  caddy 启动失败${C_RST}"
+          fi
+        else
+          echo "  (未检测到转发端口, 请先在菜单开启或检查配置)"
+        fi
         echo ""
+        echo "  本机访问:   http://127.0.0.1:3080"
+        [ -n "$curport" ] && echo "  局域网访问: http://$(lan_get_ip):${curport}"
         echo "  如需关闭,请到【4 局域网状态】一键还原。"
         echo; read -rp "按回车返回菜单..." _
       else
