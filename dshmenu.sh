@@ -159,10 +159,15 @@ lan_caddy_start(){
   mkdir -p "$cdir"
   cat > "$cdir/Caddyfile" <<'CADDY'
 :{LANPORT} {
-	reverse_proxy {DSHPORT}
+	bind 0.0.0.0
+	reverse_proxy 127.0.0.1:{DSHPORT} {
+		header_up Host localhost:{DSHPORT}
+		header_up Origin http://localhost:{DSHPORT}
+		header_up Referer http://localhost:{DSHPORT}/
+	}
 }
 CADDY
-  sed -i "s/{LANPORT}/$lanport/;s|{DSHPORT}|127.0.0.1:$dshport|" "$cdir/Caddyfile"
+  sed -i "s/{LANPORT}/$lanport/;s/{DSHPORT}/$dshport/g" "$cdir/Caddyfile"
   local lanip
   lanip=$(lan_get_ip)
   setsid caddy run --config "$cdir/Caddyfile" >"$cdir/caddy.log" 2>&1 &
@@ -224,8 +229,8 @@ lan_caddy_status(){
 
 
 # ================= dsh 本体 注入/备份/还原(局域网开启事务) =================
-DSH_INDEX="/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"
-DSH_ORIG="$HOME/.dsh/caddy/dsh-connection.index.orig"
+DSH_INDEX="/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection/lib/client.js"
+DSH_ORIG="$HOME/.dsh/caddy/dsh-client.orig"
 
 lan_dsh_backup(){
   mkdir -p "$HOME/.dsh/caddy"
@@ -237,8 +242,10 @@ lan_dsh_backup(){
 lan_dsh_inject(){
   lan_dsh_backup
   [ -f "$DSH_INDEX" ] || { echo "  ${C_RED}找不到 dsh 文件: $DSH_INDEX${C_RST}"; return 1; }
-  sed -i     -e 's/!isTrustedApiRequest(request, \[\])/!isTrustedApiRequest(request, this.trustedHosts)/g'     -e 's/const trustedHosts = options.authority === "loopback" ? \[\] : this.trustedHosts;/const trustedHosts = this.trustedHosts;/'     "$DSH_INDEX"
-  echo "  dsh 已注入(放行局域网设置接口)"
+  # 注入 client.js: crypto.randomUUID → randomUuid(非 secure context 也能生成id, 解决前端 function 报错)
+  sed -i -e 's/return RpcId(crypto.randomUUID());/return RpcId(randomUuid());/' \
+         -e 's/MessageId(crypto.randomUUID())/MessageId(randomUuid())/' "$DSH_INDEX"
+  echo "  client.js 已注入(randomUUID→randomUuid)"
 }
 
 lan_dsh_restore(){
@@ -352,8 +359,10 @@ while :; do
         echo ""
         echo "  本机访问:   http://127.0.0.1:3080"
         [ -n "$curport" ] && echo "  局域网访问: http://$(lan_get_ip):${curport}"
-        echo "  如需关闭,请到【4 局域网状态】一键还原。"
+        echo "  ${C_YEL}按回车返回菜单, 将关闭 caddy(局域网)。${C_RST}"
         echo; read -rp "按回车返回菜单..." _
+        lan_caddy_stop
+        echo "${C_YEL}  已关闭局域网。${C_RST}"
       else
         echo "═══════════════════════════════════"
         echo "  ${C_YEL}开启局域网访问${C_RST}"
@@ -374,6 +383,20 @@ while :; do
                 continue
               fi
               # 先注入 dsh(放行局域网设置接口), 再起 caddy
+              # 确保 dsh(3080) 运行(不自动打开浏览器)
+              if ! pgrep -f "dsh/lib/bin.js" >/dev/null 2>&1; then
+                mkdir -p "$HOME/.dsh/workspace"
+                local _TH
+                _TH=$(lan_get_ip)
+                local _ta=()
+                [ -n "$_TH" ] && _ta=(--trusted-host "$_TH")
+                ( cd "$HOME/.dsh/workspace" && setsid nohup dsh web --host 127.0.0.1 --port 3080 "${_ta[@]}" >"$HOME/.dsh/dsh-web.log" 2>&1 & )
+                sleep 4
+                echo "  ✅ dsh(3080) 已启动"
+              else
+                echo "  dsh(3080) 运行中"
+              fi
+              # 注入 client.js + 启动 caddy(header_up)
               if lan_dsh_inject; then
                 lan_caddy_start "$lport" 3080
                 echo ""
@@ -381,10 +404,13 @@ while :; do
                 echo "     本机访问:  http://127.0.0.1:3080"
                 echo "     局域网访问: http://$(lan_get_ip):${lport}"
                 echo ""
-                echo "  ${C_YEL}  ⚠ 请【重启 dsh(选项1)】让配置生效。${C_RST}"
+                echo "  ${C_YEL}按回车返回菜单, 将关闭 caddy(局域网)。${C_RST}"
               else
-                echo "${C_RED}  dsh 注入失败，未开启局域网。${C_RST}"
+                echo "${C_RED}  client 注入失败，未开启局域网。${C_RST}"
               fi
+              echo; read -rp "按回车返回菜单(关闭 caddy)..." _
+              lan_caddy_stop
+              echo "${C_YEL}  已关闭局域网。${C_RST}"
               break
             done
             ;;
@@ -392,7 +418,6 @@ while :; do
             echo "${C_YEL}  已取消，返回菜单。${C_RST}"
             ;;
         esac
-        read -rp "按回车返回菜单..." _
       fi;;
     4)  # 局域网状态: 显示端口 + y一键关闭还原/其他返回
       lan_caddy_status;;
