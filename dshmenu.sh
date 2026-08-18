@@ -258,9 +258,8 @@ lan_dsh_restore(){
 }
 
 lan_dsh_modified(){
-  # 向 stdout 输出 0/1(供 $(...) 捕获)。0=未开启, 1=已开启
-  if [ ! -f "$DSH_ORIG" ] || [ ! -f "$DSH_INDEX" ]; then echo 0; return; fi
-  if cmp -s "$DSH_INDEX" "$DSH_ORIG"; then echo 0; else echo 1; fi
+  # 验证 client.js 是否已注入(randomUUID→randomUuid): 有=1已开启, 无=0未开启
+  if grep -q 'return RpcId(randomUuid())' "$DSH_INDEX" 2>/dev/null; then echo 1; else echo 0; fi
 }
 
 lan_current_port(){
