@@ -19,7 +19,7 @@ Landlock/bubblewrap、原生模块需现场编译）无法直接 `npm install -g
 pkg update -y && pkg upgrade -y
 
 # ② 可选：授权访问手机存储（默认工作区在 Termux 内部，不强制需要）
-#    如要让 DSH 也读写手机存储再执行:
+# 如要让 DSH 也读写手机存储再执行:
 # termux-setup-storage
 ```
 
